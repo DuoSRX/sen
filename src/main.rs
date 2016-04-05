@@ -3,6 +3,10 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 
+// TODO: Implement Absolute and Indirect addressing modes
+// TODO: Implement a shitton more instructions
+// TODO: Factor out the memory code (we'll need to handle mappers and such)
+
 #[allow(dead_code)]
 #[derive(Debug)]
 struct Registers {
@@ -26,12 +30,6 @@ impl Registers {
         }
     }
 }
-
-// enum AddressingMode {
-//     ImmediateAddressingMode,
-//     MemoryAddressingMode,
-//     AccumulatorAddressingMode(u16)
-// }
 
 trait AddressingMode {
     fn load(&self, cpu: &mut Cpu) -> u8;
@@ -119,6 +117,22 @@ impl Cpu {
         } else {
             self.regs.p &= 0x7f;
         }
+    }
+
+    // Generate addressing modes
+    fn zero_page(&mut self) -> MemoryAM {
+        let address = self.load_byte_and_inc_pc();
+        MemoryAM { address: address as u16 }
+    }
+
+    fn zero_page_x(&mut self) -> MemoryAM {
+        let address = self.load_byte_and_inc_pc() + self.regs.x;
+        MemoryAM { address: address as u16 }
+    }
+
+    fn zero_page_y(&mut self) -> MemoryAM {
+        let address = self.load_byte_and_inc_pc() + self.regs.y;
+        MemoryAM { address: address as u16 }
     }
 
     fn sta<AM: AddressingMode>(&mut self, am: AM) {
@@ -217,6 +231,8 @@ fn main() {
             0x9A => cpu.tya(),
             0xE8 => cpu.inx(),
             0xA9 => cpu.lda(ImmediateAM),
+            0xAD => { let am = cpu.zero_page(); cpu.lda(am) }
+            0xB5 => { let am = cpu.zero_page_x(); cpu.lda(am) }
             0xA2 => cpu.ldx(ImmediateAM),
             0xA0 => cpu.ldy(ImmediateAM),
             _ => () //println!("Unknown opcode")
