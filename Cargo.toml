@@ -1,0 +1,6 @@
+[package]
+name = "sen"
+version = "0.1.0"
+authors = ["Xavier Perez <duosrx@gmail.com>"]
+
+[dependencies]
