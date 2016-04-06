@@ -130,6 +130,16 @@ impl Cpu {
             0x05 => { let am = self.zero_page(); self.ora(am) }
             0x15 => { let am = self.zero_page_x(); self.ora(am) }
 
+            // Branching
+            0x10 => self.bpl(),
+            0x30 => self.bmi(),
+            0x50 => self.bvc(),
+            0x70 => self.bvs(),
+            0x90 => self.bcc(),
+            0xB0 => self.bcs(),
+            0xD0 => self.bne(),
+            0xF0 => self.beq(),
+
             // Stack
             0x08 => self.php(),
             0x28 => self.plp(),
@@ -208,6 +218,10 @@ impl Cpu {
         } else {
             self.unset_flag(NEGATIVE_FLAG)
         }
+    }
+
+    fn check_flag(&mut self, flag: u8) -> bool {
+        (self.regs.p & flag) != 0
     }
 
     fn set_flag(&mut self, flag: u8) {
@@ -391,6 +405,72 @@ impl Cpu {
 
     fn sed(&mut self) {
         self.set_flag(DECIMAL_FLAG);
+    }
+
+    // Branching
+    // TODO: All of these are super similar. Refactor that stuff!
+    fn bpl(&mut self) {
+        let plus = !self.check_flag(NEGATIVE_FLAG);
+        let byte = self.load_byte_and_inc_pc();
+        if plus {
+            self.regs.pc += byte as u16;
+        }
+    }
+
+    fn bmi(&mut self) {
+        let plus = self.check_flag(NEGATIVE_FLAG);
+        let byte = self.load_byte_and_inc_pc();
+        if plus {
+            self.regs.pc += byte as u16;
+        }
+    }
+
+    fn bvc(&mut self) {
+        let overflow = !self.check_flag(OVERFLOW_FLAG);
+        let byte = self.load_byte_and_inc_pc();
+        if overflow {
+            self.regs.pc += byte as u16;
+        }
+    }
+
+    fn bvs(&mut self) {
+        let overflow = self.check_flag(OVERFLOW_FLAG);
+        let byte = self.load_byte_and_inc_pc();
+        if overflow {
+            self.regs.pc += byte as u16;
+        }
+    }
+
+    fn bcc(&mut self) {
+        let carry = !self.check_flag(CARRY_FLAG);
+        let byte = self.load_byte_and_inc_pc();
+        if carry {
+            self.regs.pc += byte as u16;
+        }
+    }
+
+    fn bcs(&mut self) {
+        let carry = self.check_flag(CARRY_FLAG);
+        let byte = self.load_byte_and_inc_pc();
+        if carry {
+            self.regs.pc += byte as u16;
+        }
+    }
+
+    fn bne(&mut self) {
+        let zero = self.check_flag(ZERO_FLAG);
+        let byte = self.load_byte_and_inc_pc();
+        if zero {
+            self.regs.pc += byte as u16;
+        }
+    }
+
+    fn beq(&mut self) {
+        let zero = !self.check_flag(ZERO_FLAG);
+        let byte = self.load_byte_and_inc_pc();
+        if zero {
+            self.regs.pc += byte as u16;
+        }
     }
 }
 
