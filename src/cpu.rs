@@ -1,10 +1,4 @@
-// use std::error::Error;
-// use std::fs::File;
-// use std::io::prelude::*;
-// use std::path::Path;
-
-// TODO: Implement a ton more instructions
-// TODO: Factor out the memory code (we'll need to handle mappers and such)
+use std;
 
 const CARRY_FLAG:     u8 = 0b00000001;
 const ZERO_FLAG:      u8 = 0b00000010;
@@ -38,7 +32,7 @@ impl Registers {
     }
 }
 
-// The addressing mode trait was liberally inspired by sprocketnes
+// The addressing mode trait was liberally inspired by https://github.com/pcwalton/sprocketnes
 trait AddressingMode {
     fn load(&self, cpu: &mut Cpu) -> u8;
     fn store(&self, cpu: &mut Cpu, value: u8);
@@ -74,6 +68,7 @@ impl std::fmt::Debug for Ram {
     }
 }
 
+// TODO: Factor out that code (we'll need to handle mappers and such)
 impl Ram {
     fn load(&self, address: u16) -> u8 {
         self.val[address as usize & 0x7ff]
@@ -85,13 +80,13 @@ impl Ram {
 }
 
 #[derive(Debug)]
-struct Cpu {
+pub struct Cpu {
     regs: Registers,
     ram: Ram,
 }
 
 impl Cpu {
-    fn new() -> Cpu {
+    pub fn new() -> Cpu {
         Cpu {
             regs: Registers::new(),
             ram: Ram {
@@ -100,7 +95,7 @@ impl Cpu {
         }
     }
 
-    fn step(&mut self) {
+    pub fn step(&mut self) {
         let instruction = self.load_byte_and_inc_pc();
         self.execute_instruction(instruction);
         // TODO: Handle cycle count
@@ -811,21 +806,4 @@ impl Cpu {
 
         self.set_nz_flags(value);
     }
-}
-
-fn main() {
-    let mut cpu = Cpu::new();
-    println!("{:?}", cpu);
-    println!("Flags: {:08b}", cpu.regs.p);
-    cpu.ram.val[0] = 0x4E;
-    cpu.ram.val[1] = 0x45;
-    cpu.ram.val[2] = 0x53;
-
-    cpu.step();
-    println!("{:?}", cpu);
-    println!("Flags: {:08b}", cpu.regs.p);
-
-    cpu.step();
-    println!("{:?}", cpu);
-    println!("Flags: {:08b}", cpu.regs.p);
 }
