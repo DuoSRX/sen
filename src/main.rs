@@ -109,8 +109,56 @@ impl Cpu {
 
     fn execute_instruction(&mut self, instruction: u8) {
         match instruction {
-            // 0x00 => self.brk(), TODO
             0xEA => (), // NOP
+
+            // Registers
+            0xAA => self.tax(),
+            0x8A => self.txa(),
+            0xCA => self.dex(),
+            0xE8 => self.inx(),
+            0xA8 => self.tay(),
+            0x98 => self.tya(),
+            0x88 => self.dey(),
+            0xC8 => self.iny(),
+
+            // Rotations
+            0x2A => self.rol(ImmediateAM),
+            0x26 => { let am = self.zero_page(); self.rol(am) }
+            0x36 => { let am = self.zero_page_x(); self.rol(am) }
+            0x2E => { let am = self.absolute(); self.rol(am) }
+            0x3E => { let am = self.absolute_x(); self.rol(am) }
+
+            0x6A => self.ror(ImmediateAM),
+            0x66 => { let am = self.zero_page(); self.rol(am) }
+            0x76 => { let am = self.zero_page_x(); self.rol(am) }
+            0x6E => { let am = self.absolute(); self.rol(am) }
+            0x7E => { let am = self.absolute_x(); self.rol(am) }
+
+            0x0A => self.asl(AccumulatorAM),
+            0x06 => { let am = self.zero_page(); self.asl(am) }
+            0x16 => { let am = self.zero_page_x(); self.asl(am) }
+            0x0E => { let am = self.absolute(); self.asl(am) }
+            0x1E => { let am = self.absolute_x(); self.asl(am) }
+            // TODO: LSR
+
+            // Bitwise
+            0x29 => self.and(ImmediateAM),
+            0x25 => { let am = self.zero_page(); self.and(am) }
+            0x35 => { let am = self.zero_page_x(); self.and(am) }
+            0x2D => { let am = self.absolute(); self.and(am) }
+            0x3D => { let am = self.absolute_x(); self.and(am) }
+            0x39 => { let am = self.absolute_y(); self.and(am) }
+            // TODO: 0x21 => { let am = self.indexed_indirect(); self.and(am) }
+            // TODO: 0x31 => { let am = self.indirect_indexed(); self.and(am) }
+
+            0x49 => self.eor(ImmediateAM),
+            0x45 => { let am = self.zero_page(); self.eor(am) }
+            0x55 => { let am = self.zero_page_x(); self.eor(am) }
+            0x4D => { let am = self.absolute(); self.eor(am) }
+            0x5D => { let am = self.absolute_x(); self.eor(am) }
+            0x59 => { let am = self.absolute_y(); self.eor(am) }
+            // TODO: 0x41 => { let am = self.indexed_indirect(); self.eor(am) }
+            // TODO: 0x51 => { let am = self.indirect_indexed(); self.eor(am) }
 
             // Flag operations
             0x18 => self.clc(),
@@ -121,8 +169,8 @@ impl Cpu {
             0xD8 => self.cld(),
             0xF8 => self.sed(),
 
-            // 0x01 => { let am = self.indexed_indirect_x(); self.ora(am) }
-            // 0x11 => { let am = self.indexed_indirect_y(); self.ora(am) }
+            // TODO: 0x01 => { let am = self.indexed_indirect_x(); self.ora(am) }
+            // TODO: 0x11 => { let am = self.indexed_indirect_y(); self.ora(am) }
             0x09 => self.ora(ImmediateAM),
             0x0D => { let am = self.absolute(); self.ora(am) }
             0x1D => { let am = self.absolute_x(); self.ora(am) }
@@ -139,6 +187,13 @@ impl Cpu {
             0xB0 => self.bcs(),
             0xD0 => self.bne(),
             0xF0 => self.beq(),
+            // TODO: CMP
+            // TODO: CPX
+            // TODO: CPY
+
+            // Jumps
+            // TODO: JMP
+            // TODO: JSR
 
             // Stack
             0x08 => self.php(),
@@ -146,27 +201,38 @@ impl Cpu {
             0x48 => self.pha(),
             0x68 => self.pla(),
 
-            // Register
-            0xAA => self.tax(),
-            0x8A => self.txa(),
-            0xCA => self.dex(),
-            0xE8 => self.inx(),
-            0xA8 => self.tay(),
-            0x98 => self.tya(),
-            0x88 => self.dey(),
-            0xC8 => self.iny(),
+            // Increment/Decrements
+            0xC6 => { let am = self.zero_page(); self.dec(am) }
+            0xD6 => { let am = self.zero_page_x(); self.dec(am) }
+            0xCE => { let am = self.absolute(); self.dec(am) }
+            0xDE => { let am = self.absolute_x(); self.dec(am) }
+            0xE6 => { let am = self.zero_page(); self.inc(am) }
+            0xF6 => { let am = self.zero_page_x(); self.inc(am) }
+            0xEE => { let am = self.absolute(); self.inc(am) }
+            0xFF => { let am = self.absolute_x(); self.inc(am) }
 
-            0x0A => self.asl(AccumulatorAM),
-            0x06 => { let am = self.zero_page(); self.asl(am) }
-            0x16 => { let am = self.zero_page_x(); self.asl(am) }
-            0x0E => { let am = self.absolute(); self.asl(am) }
-            0x1E => { let am = self.absolute_x(); self.asl(am) }
+            // Arithmetic
+            // TODO: ADC
+            // TODO: SBC
 
+            // Storage
             0xA9 => self.lda(ImmediateAM),
             0xAD => { let am = self.zero_page(); self.lda(am) }
             0xB5 => { let am = self.zero_page_x(); self.lda(am) }
             0xA2 => self.ldx(ImmediateAM),
             0xA0 => self.ldy(ImmediateAM),
+            // TODO: LDA
+            // TODO: LDX
+            // TODO: LDY
+            // TODO: STA
+            // TODO: STX
+            // TODO: STX
+
+            // Interrupt and misc
+            // TODO: RTI
+            // TODO: RTS
+            // TODO: BRK
+            // TODO: BIT
 
             unknown => panic!("Unkown opcode {:02x}", unknown)
         }
@@ -271,6 +337,18 @@ impl Cpu {
         MemoryAM { address: address }
     }*/
 
+    fn inc<AM: AddressingMode>(&mut self, am: AM) {
+        let val = am.load(self) + 1;
+        self.set_nz_flags(val);
+        am.store(self, val & 0xFF);
+    }
+
+    fn dec<AM: AddressingMode>(&mut self, am: AM) {
+        let val = am.load(self) - 1;
+        self.set_nz_flags(val);
+        am.store(self, val & 0xFF);
+    }
+
     /*fn sta<AM: AddressingMode>(&mut self, am: AM) {
         let a = self.regs.a;
         am.store(self, a)
@@ -341,6 +419,64 @@ impl Cpu {
         let y = self.regs.y + 1;
         self.regs.y = y;
         self.set_nz_flags(y);
+    }
+
+    // FIXME: This seems overly complicated...
+    fn rol<AM:AddressingMode>(&mut self, am: AM) {
+        let value = am.load(self);
+        let carry = (value & 0x80) != 0;
+        let result = value << 1;
+
+        if self.check_flag(CARRY_FLAG) {
+            am.store(self, result | 1);
+        } else {
+            am.store(self, result);
+        }
+
+        if carry {
+            self.set_flag(CARRY_FLAG);
+        } else {
+            self.unset_flag(CARRY_FLAG);
+        }
+
+        self.set_nz_flags(result);
+        am.store(self, result)
+    }
+
+    // FIXME: This seems overly complicated...
+    fn ror<AM:AddressingMode>(&mut self, am: AM) {
+        let value = am.load(self);
+        let carry = (value & 1) != 0;
+        let result = value >> 1;
+
+        if self.check_flag(CARRY_FLAG) {
+            am.store(self, result | 0x80);
+        } else {
+            am.store(self, result);
+        }
+
+        if carry {
+            self.set_flag(CARRY_FLAG);
+        } else {
+            self.unset_flag(CARRY_FLAG);
+        }
+
+        self.set_nz_flags(result);
+        am.store(self, result)
+    }
+
+    fn and<AM:AddressingMode>(&mut self, am: AM) {
+        let a = self.regs.a;
+        let value = am.load(self) & a;
+        self.set_nz_flags(value);
+        self.regs.a = value;
+    }
+
+    fn eor<AM:AddressingMode>(&mut self, am: AM) {
+        let a = self.regs.a;
+        let value = am.load(self) ^ a;
+        self.set_nz_flags(value);
+        self.regs.a = value;
     }
 
     fn asl<AM:AddressingMode>(&mut self, am: AM) {
