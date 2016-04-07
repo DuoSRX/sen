@@ -120,6 +120,8 @@ impl Cpu {
             0x98 => self.tya(),
             0x88 => self.dey(),
             0xC8 => self.iny(),
+            0x9A => self.txs(),
+            0xBA => self.tsx(),
 
             // Rotations
             0x2A => self.rol(ImmediateAM),
@@ -233,8 +235,23 @@ impl Cpu {
             0xFF => { let am = self.absolute_x(); self.inc(am) }
 
             // Arithmetic
-            // TODO: ADC
-            // TODO: SBC
+            0x69 => self.adc(ImmediateAM),
+            0x65 => { let am = self.zero_page(); self.adc(am) }
+            0x75 => { let am = self.zero_page_x(); self.adc(am) }
+            0x6D => { let am = self.absolute(); self.adc(am) }
+            0x7D => { let am = self.absolute_x(); self.adc(am) }
+            0x79 => { let am = self.absolute_y(); self.adc(am) }
+            // TODO: 0x61 indirect indexed
+            // TODO: 0x71 indexed indirect
+
+            0xE9 => self.sbc(ImmediateAM),
+            0xE5 => { let am = self.zero_page(); self.sbc(am) }
+            0xF5 => { let am = self.zero_page_x(); self.sbc(am) }
+            0xED => { let am = self.absolute(); self.sbc(am) }
+            0xFD => { let am = self.absolute_x(); self.sbc(am) }
+            0xF9 => { let am = self.absolute_y(); self.sbc(am) }
+            // TODO: 0xE1 indirect indexed
+            // TODO: 0xF1 indexed indirect
 
             // Load
             0xA9 => self.lda(ImmediateAM),
@@ -397,6 +414,42 @@ impl Cpu {
         MemoryAM { address: address }
     }*/
 
+    fn adc<AM: AddressingMode>(&mut self, am: AM) {
+        let value = am.load(self);
+        let mut result = value as u32 + self.regs.a as u32;
+        if self.check_flag(CARRY_FLAG) {
+            result += 1;
+        }
+
+        if (result & 0x100) != 0 {
+            self.set_flag(CARRY_FLAG);
+        } else {
+            self.unset_flag(CARRY_FLAG);
+        }
+
+        self.set_nz_flags(result as u8);
+        self.regs.a = (result as u8) & 0xFF;
+        // TODO: Handle overflow flag
+    }
+
+    fn sbc<AM: AddressingMode>(&mut self, am: AM) {
+        let value = am.load(self);
+        let mut result = value as u32 - self.regs.a as u32;
+        if !self.check_flag(CARRY_FLAG) {
+            result -= 1;
+        }
+
+        if (result & 0x100) == 0 {
+            self.set_flag(CARRY_FLAG);
+        } else {
+            self.unset_flag(CARRY_FLAG);
+        }
+
+        self.set_nz_flags(result as u8);
+        self.regs.a = (result as u8) & 0xFF;
+        // TODO: Handle overflow flag
+    }
+
     fn inc<AM: AddressingMode>(&mut self, am: AM) {
         let val = am.load(self) + 1;
         self.set_nz_flags(val);
@@ -489,6 +542,16 @@ impl Cpu {
         let y = self.regs.y + 1;
         self.regs.y = y;
         self.set_nz_flags(y);
+    }
+
+    fn txs(&mut self) {
+        self.regs.s = self.regs.x;
+    }
+
+    fn tsx(&mut self) {
+        let s = self.regs.s;
+        self.regs.x = s;
+        self.set_nz_flags(s);
     }
 
     // FIXME: This seems overly complicated...
