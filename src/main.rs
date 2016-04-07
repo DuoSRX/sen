@@ -3,8 +3,8 @@
 // use std::io::prelude::*;
 // use std::path::Path;
 
-// TODO: Implement Absolute and Indirect addressing modes
-// TODO: Implement a shitton more instructions
+// TODO: Implement Indirect addressing modes
+// TODO: Implement a ton more instructions
 // TODO: Factor out the memory code (we'll need to handle mappers and such)
 
 const CARRY_FLAG:     u8 = 0b00000001;
@@ -139,7 +139,12 @@ impl Cpu {
             0x16 => { let am = self.zero_page_x(); self.asl(am) }
             0x0E => { let am = self.absolute(); self.asl(am) }
             0x1E => { let am = self.absolute_x(); self.asl(am) }
-            // TODO: LSR
+
+            0x4A => self.lsr(AccumulatorAM),
+            0x46 => { let am = self.zero_page(); self.lsr(am) }
+            0x56 => { let am = self.zero_page_x(); self.lsr(am) }
+            0x4E => { let am = self.absolute(); self.lsr(am) }
+            0x5E => { let am = self.absolute_x(); self.lsr(am) }
 
             // Bitwise
             0x29 => self.and(ImmediateAM),
@@ -169,8 +174,8 @@ impl Cpu {
             0xD8 => self.cld(),
             0xF8 => self.sed(),
 
-            // TODO: 0x01 => { let am = self.indexed_indirect_x(); self.ora(am) }
-            // TODO: 0x11 => { let am = self.indexed_indirect_y(); self.ora(am) }
+            // TODO: 0x01 => { let am = self.indexed_indirect(); self.ora(am) }
+            // TODO: 0x11 => { let am = self.indirect_indexed(); self.ora(am) }
             0x09 => self.ora(ImmediateAM),
             0x0D => { let am = self.absolute(); self.ora(am) }
             0x1D => { let am = self.absolute_x(); self.ora(am) }
@@ -187,13 +192,16 @@ impl Cpu {
             0xB0 => self.bcs(),
             0xD0 => self.bne(),
             0xF0 => self.beq(),
+
+            // Comparisons
             // TODO: CMP
             // TODO: CPX
             // TODO: CPY
 
             // Jumps
-            // TODO: JMP
-            // TODO: JSR
+            // TODO: 0x4C => self.jmp(),
+            // TODO: 0x6C => { let am = self.indirect(); self.jmp(am) }
+            0x20 => self.jsr(),
 
             // Stack
             0x08 => self.php(),
@@ -215,18 +223,44 @@ impl Cpu {
             // TODO: ADC
             // TODO: SBC
 
-            // Storage
+            // Load
             0xA9 => self.lda(ImmediateAM),
-            0xAD => { let am = self.zero_page(); self.lda(am) }
+            0xA5 => { let am = self.zero_page(); self.lda(am) }
             0xB5 => { let am = self.zero_page_x(); self.lda(am) }
+            0xAD => { let am = self.absolute(); self.lda(am) }
+            0xBD => { let am = self.absolute_x(); self.lda(am) }
+            0xB9 => { let am = self.absolute_y(); self.lda(am) }
+            // TODO: indirect indexed
+            // TODO: indexed indirect
+
             0xA2 => self.ldx(ImmediateAM),
+            0xA6 => { let am = self.zero_page(); self.ldx(am) }
+            0xB6 => { let am = self.zero_page_y(); self.ldx(am) }
+            0xAE => { let am = self.absolute(); self.ldx(am) }
+            0xBE => { let am = self.absolute_y(); self.ldx(am) }
+
             0xA0 => self.ldy(ImmediateAM),
-            // TODO: LDA
-            // TODO: LDX
-            // TODO: LDY
-            // TODO: STA
-            // TODO: STX
-            // TODO: STX
+            0xA4 => { let am = self.zero_page(); self.ldy(am) }
+            0xB4 => { let am = self.zero_page_x(); self.ldy(am) }
+            0xAC => { let am = self.absolute(); self.ldy(am) }
+            0xBC => { let am = self.absolute_x(); self.ldy(am) }
+
+            // Store
+            0x85 => { let am = self.zero_page(); self.sta(am) }
+            0x95 => { let am = self.zero_page_x(); self.sta(am) }
+            0x8D => { let am = self.absolute(); self.sta(am) }
+            0x9D => { let am = self.absolute_x(); self.sta(am) }
+            0x99 => { let am = self.absolute_y(); self.sta(am) }
+            // TODO: indirect indexed
+            // TODO: indexed indirect
+
+            0x86 => { let am = self.zero_page(); self.stx(am) }
+            0x96 => { let am = self.zero_page_y(); self.stx(am) }
+            0x8E => { let am = self.absolute(); self.stx(am) }
+
+            0x84 => { let am = self.zero_page(); self.sty(am) }
+            0x94 => { let am = self.zero_page_x(); self.sty(am) }
+            0x8C => { let am = self.absolute(); self.sty(am) }
 
             // Interrupt and misc
             // TODO: RTI
@@ -246,6 +280,13 @@ impl Cpu {
         self.ram.store(address, value)
     }
 
+    fn store_word(&mut self, address: u16, value: u16) {
+        let lo = value & 0xFF;
+        let hi = (value >> 8) & 0xFF;
+        self.store_byte(address, lo as u8);
+        self.store_byte(address + 1, hi as u8);
+    }
+
     fn load_byte_and_inc_pc(&mut self) -> u8 {
         let pc = self.regs.pc;
         let byte = self.load_byte(pc);
@@ -263,6 +304,12 @@ impl Cpu {
         let stack_pointer = self.regs.s;
         self.store_byte(0x100 + stack_pointer as u16, value);
         self.regs.s -= 1;
+    }
+
+    fn push_word(&mut self, value: u16) {
+        let stack_pointer = self.regs.s - 1;
+        self.store_word(0x100 + stack_pointer as u16, value);
+        self.regs.s -= 2;
     }
 
     fn pop_byte(&mut self) -> u8 {
@@ -309,10 +356,10 @@ impl Cpu {
         MemoryAM { address: address as u16 }
     }
 
-    //fn zero_page_y(&mut self) -> MemoryAM {
-    //    let address = self.load_byte_and_inc_pc() + self.regs.y;
-    //    MemoryAM { address: address as u16 }
-    //}
+    fn zero_page_y(&mut self) -> MemoryAM {
+        let address = self.load_byte_and_inc_pc() + self.regs.y;
+        MemoryAM { address: address as u16 }
+    }
 
     fn absolute(&mut self) -> MemoryAM {
         let address = self.load_word_and_inc_pc();
@@ -349,11 +396,6 @@ impl Cpu {
         am.store(self, val & 0xFF);
     }
 
-    /*fn sta<AM: AddressingMode>(&mut self, am: AM) {
-        let a = self.regs.a;
-        am.store(self, a)
-    }*/
-
     fn lda<AM: AddressingMode>(&mut self, am: AM) {
         let val = am.load(self);
         self.regs.a = val;
@@ -370,6 +412,21 @@ impl Cpu {
         let val = am.load(self);
         self.regs.y = val;
         self.set_nz_flags(val)
+    }
+
+    fn sta<AM: AddressingMode>(&mut self, am: AM) {
+        let a = self.regs.a;
+        am.store(self, a)
+    }
+
+    fn stx<AM: AddressingMode>(&mut self, am: AM) {
+        let x = self.regs.x;
+        am.store(self, x)
+    }
+
+    fn sty<AM: AddressingMode>(&mut self, am: AM) {
+        let y = self.regs.y;
+        am.store(self, y)
     }
 
     // Register
@@ -479,6 +536,7 @@ impl Cpu {
         self.regs.a = value;
     }
 
+    // FIXME: Set carry correctly
     fn asl<AM:AddressingMode>(&mut self, am: AM) {
         let value = am.load(self);
         if (value & 0x80) != 0 {
@@ -489,10 +547,34 @@ impl Cpu {
         am.store(self, result)
     }
 
+    // FIXME: Set carry correctly
+    fn lsr<AM:AddressingMode>(&mut self, am: AM) {
+        let value = am.load(self);
+        if (value & 1) != 0 {
+            self.set_flag(CARRY_FLAG);
+        }
+        let result = value >> 1;
+        self.set_nz_flags(result);
+        am.store(self, result)
+    }
+
     fn ora<AM:AddressingMode>(&mut self, am: AM) {
         let result = self.regs.a | am.load(self);
         self.set_nz_flags(result);
         self.regs.a = result;
+    }
+
+    // Jumps
+    // fn jmp(&mut self) {
+    //     let address = self.load_word_and_inc_pc();
+    //     self.regs.pc = address;
+    // }
+
+    fn jsr(&mut self) {
+        let address = self.load_word_and_inc_pc();
+        let pc = self.regs.pc - 1;
+        self.push_word(pc);
+        self.regs.pc = address;
     }
 
     // Stack operations
@@ -614,8 +696,9 @@ fn main() {
     let mut cpu = Cpu::new();
     println!("{:?}", cpu);
     println!("Flags: {:08b}", cpu.regs.p);
-    cpu.ram.val[0] = 0x08;
-    cpu.ram.val[1] = 0x68;
+    cpu.ram.val[0] = 0x4E;
+    cpu.ram.val[1] = 0x45;
+    cpu.ram.val[2] = 0x53;
 
     cpu.step();
     println!("{:?}", cpu);
