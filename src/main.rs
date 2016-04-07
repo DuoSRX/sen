@@ -194,9 +194,22 @@ impl Cpu {
             0xF0 => self.beq(),
 
             // Comparisons
-            // TODO: CMP
-            // TODO: CPX
-            // TODO: CPY
+            0xC9 => self.cmp(ImmediateAM),
+            0xC5 => { let am = self.zero_page(); self.cmp(am) }
+            0xD5 => { let am = self.zero_page_x(); self.cmp(am) }
+            0xCD => { let am = self.absolute(); self.cmp(am) }
+            0xDD => { let am = self.absolute_x(); self.cmp(am) }
+            0xD9 => { let am = self.absolute_y(); self.cmp(am) }
+            // TODO: 0xC1 => { let am = self.zero_page(); self.cmp(am) }
+            // TODO: 0xD1 => { let am = self.zero_page_x(); self.cmp(am) }
+
+            0xE0 => self.cpx(ImmediateAM),
+            0xE4 => { let am = self.zero_page(); self.cpx(am) }
+            0xEC => { let am = self.absolute(); self.cpx(am) }
+
+            0xC0 => self.cpy(ImmediateAM),
+            0xC4 => { let am = self.zero_page(); self.cpy(am) }
+            0xCC => { let am = self.absolute(); self.cpy(am) }
 
             // Jumps
             // TODO: 0x4C => self.jmp(),
@@ -689,6 +702,35 @@ impl Cpu {
         if zero {
             self.regs.pc += byte as u16;
         }
+    }
+
+    // Comparisons
+    fn cmp<AM:AddressingMode>(&mut self, am: AM) {
+        let a = self.regs.a;
+        self.generic_comparison(am, a);
+    }
+
+    fn cpx<AM:AddressingMode>(&mut self, am: AM) {
+        let x = self.regs.x;
+        self.generic_comparison(am, x);
+    }
+
+    fn cpy<AM:AddressingMode>(&mut self, am: AM) {
+        let y = self.regs.y;
+        self.generic_comparison(am, y);
+    }
+
+    fn generic_comparison<AM:AddressingMode>(&mut self, am: AM, reg: u8) {
+        let byte = am.load(self);
+        let value = reg - byte;
+
+        if reg >= byte {
+            self.set_flag(CARRY_FLAG);
+        } else {
+            self.unset_flag(CARRY_FLAG);
+        }
+
+        self.set_nz_flags(value);
     }
 }
 
