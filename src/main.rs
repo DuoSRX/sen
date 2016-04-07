@@ -3,7 +3,6 @@
 // use std::io::prelude::*;
 // use std::path::Path;
 
-// TODO: Implement Indirect addressing modes
 // TODO: Implement a ton more instructions
 // TODO: Factor out the memory code (we'll need to handle mappers and such)
 
@@ -155,8 +154,8 @@ impl Cpu {
             0x2D => { let am = self.absolute(); self.and(am) }
             0x3D => { let am = self.absolute_x(); self.and(am) }
             0x39 => { let am = self.absolute_y(); self.and(am) }
-            // TODO: 0x21 => { let am = self.indexed_indirect(); self.and(am) }
-            // TODO: 0x31 => { let am = self.indirect_indexed(); self.and(am) }
+            0x21 => { let am = self.indexed_indirect(); self.and(am) }
+            0x31 => { let am = self.indirect_indexed(); self.and(am) }
 
             0x49 => self.eor(ImmediateAM),
             0x45 => { let am = self.zero_page(); self.eor(am) }
@@ -164,8 +163,8 @@ impl Cpu {
             0x4D => { let am = self.absolute(); self.eor(am) }
             0x5D => { let am = self.absolute_x(); self.eor(am) }
             0x59 => { let am = self.absolute_y(); self.eor(am) }
-            // TODO: 0x41 => { let am = self.indexed_indirect(); self.eor(am) }
-            // TODO: 0x51 => { let am = self.indirect_indexed(); self.eor(am) }
+            0x41 => { let am = self.indexed_indirect(); self.eor(am) }
+            0x51 => { let am = self.indirect_indexed(); self.eor(am) }
 
             0x09 => self.ora(ImmediateAM),
             0x0D => { let am = self.absolute(); self.ora(am) }
@@ -173,8 +172,8 @@ impl Cpu {
             0x19 => { let am = self.absolute_y(); self.ora(am) }
             0x05 => { let am = self.zero_page(); self.ora(am) }
             0x15 => { let am = self.zero_page_x(); self.ora(am) }
-            // TODO: 0x01 => { let am = self.indexed_indirect(); self.ora(am) }
-            // TODO: 0x11 => { let am = self.indirect_indexed(); self.ora(am) }
+            0x01 => { let am = self.indexed_indirect(); self.ora(am) }
+            0x11 => { let am = self.indirect_indexed(); self.ora(am) }
 
             // Flag operations
             0x18 => self.clc(),
@@ -202,8 +201,8 @@ impl Cpu {
             0xCD => { let am = self.absolute(); self.cmp(am) }
             0xDD => { let am = self.absolute_x(); self.cmp(am) }
             0xD9 => { let am = self.absolute_y(); self.cmp(am) }
-            // TODO: 0xC1 => { let am = self.zero_page(); self.cmp(am) }
-            // TODO: 0xD1 => { let am = self.zero_page_x(); self.cmp(am) }
+            0xC1 => { let am = self.indexed_indirect(); self.cmp(am) }
+            0xD1 => { let am = self.indirect_indexed(); self.cmp(am) }
 
             0xE0 => self.cpx(ImmediateAM),
             0xE4 => { let am = self.zero_page(); self.cpx(am) }
@@ -241,8 +240,8 @@ impl Cpu {
             0x6D => { let am = self.absolute(); self.adc(am) }
             0x7D => { let am = self.absolute_x(); self.adc(am) }
             0x79 => { let am = self.absolute_y(); self.adc(am) }
-            // TODO: 0x61 indirect indexed
-            // TODO: 0x71 indexed indirect
+            0x61 => { let am = self.indexed_indirect(); self.adc(am) }
+            0x71 => { let am = self.indirect_indexed(); self.adc(am) }
 
             0xE9 => self.sbc(ImmediateAM),
             0xE5 => { let am = self.zero_page(); self.sbc(am) }
@@ -250,8 +249,8 @@ impl Cpu {
             0xED => { let am = self.absolute(); self.sbc(am) }
             0xFD => { let am = self.absolute_x(); self.sbc(am) }
             0xF9 => { let am = self.absolute_y(); self.sbc(am) }
-            // TODO: 0xE1 indirect indexed
-            // TODO: 0xF1 indexed indirect
+            0xE1 => { let am = self.indexed_indirect(); self.sbc(am) }
+            0xF1 => { let am = self.indirect_indexed(); self.sbc(am) }
 
             // Load
             0xA9 => self.lda(ImmediateAM),
@@ -260,8 +259,8 @@ impl Cpu {
             0xAD => { let am = self.absolute(); self.lda(am) }
             0xBD => { let am = self.absolute_x(); self.lda(am) }
             0xB9 => { let am = self.absolute_y(); self.lda(am) }
-            // TODO: indirect indexed
-            // TODO: indexed indirect
+            0xA1 => { let am = self.indexed_indirect(); self.lda(am) }
+            0xB1 => { let am = self.indirect_indexed(); self.lda(am) }
 
             0xA2 => self.ldx(ImmediateAM),
             0xA6 => { let am = self.zero_page(); self.ldx(am) }
@@ -281,8 +280,8 @@ impl Cpu {
             0x8D => { let am = self.absolute(); self.sta(am) }
             0x9D => { let am = self.absolute_x(); self.sta(am) }
             0x99 => { let am = self.absolute_y(); self.sta(am) }
-            // TODO: indirect indexed
-            // TODO: indexed indirect
+            0x81 => { let am = self.indirect_indexed(); self.sta(am) }
+            0x91 => { let am = self.indexed_indirect(); self.sta(am) }
 
             0x86 => { let am = self.zero_page(); self.stx(am) }
             0x96 => { let am = self.zero_page_y(); self.stx(am) }
@@ -304,6 +303,12 @@ impl Cpu {
 
     fn load_byte(&mut self, address: u16) -> u8 {
         self.ram.load(address)
+    }
+
+    fn load_word(&mut self, address: u16) -> u16 {
+        let lo = self.ram.load(address) as u16;
+        let hi = self.ram.load(address + 1) as u16;
+        lo | hi << 8
     }
 
     fn store_byte(&mut self, address: u16, value: u8) {
@@ -406,14 +411,24 @@ impl Cpu {
         MemoryAM { address: address }
     }
 
-    // FIXME
-    /*fn indexed_indirect(&mut self) -> MemoryAM {
-        let byte = self.load_byte_and_inc_pc();
-        let indirect = byte + self.regs.x;
-        let address = self.load_word()
+    // e.g. LDA ($20,X)
+    fn indexed_indirect(&mut self) -> MemoryAM {
+        let page = self.load_byte_and_inc_pc();
+        let indirect = page + self.regs.x;
+        let address = self.load_word(indirect as u16);
         MemoryAM { address: address }
-    }*/
+    }
 
+    // e.g. LDA ($86),Y
+    fn indirect_indexed(&mut self) -> MemoryAM {
+        let page = self.load_byte_and_inc_pc();
+        let indirect = page + self.regs.x;
+        let address = self.load_word(indirect as u16);
+        MemoryAM { address: address }
+    }
+
+    // Instructions
+    // Arithmetic
     fn adc<AM: AddressingMode>(&mut self, am: AM) {
         let value = am.load(self);
         let mut result = value as u32 + self.regs.a as u32;
