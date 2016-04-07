@@ -165,6 +165,15 @@ impl Cpu {
             // TODO: 0x41 => { let am = self.indexed_indirect(); self.eor(am) }
             // TODO: 0x51 => { let am = self.indirect_indexed(); self.eor(am) }
 
+            0x09 => self.ora(ImmediateAM),
+            0x0D => { let am = self.absolute(); self.ora(am) }
+            0x1D => { let am = self.absolute_x(); self.ora(am) }
+            0x19 => { let am = self.absolute_y(); self.ora(am) }
+            0x05 => { let am = self.zero_page(); self.ora(am) }
+            0x15 => { let am = self.zero_page_x(); self.ora(am) }
+            // TODO: 0x01 => { let am = self.indexed_indirect(); self.ora(am) }
+            // TODO: 0x11 => { let am = self.indirect_indexed(); self.ora(am) }
+
             // Flag operations
             0x18 => self.clc(),
             0x38 => self.sec(),
@@ -173,15 +182,6 @@ impl Cpu {
             0xB8 => self.clv(),
             0xD8 => self.cld(),
             0xF8 => self.sed(),
-
-            // TODO: 0x01 => { let am = self.indexed_indirect(); self.ora(am) }
-            // TODO: 0x11 => { let am = self.indirect_indexed(); self.ora(am) }
-            0x09 => self.ora(ImmediateAM),
-            0x0D => { let am = self.absolute(); self.ora(am) }
-            0x1D => { let am = self.absolute_x(); self.ora(am) }
-            0x19 => { let am = self.absolute_y(); self.ora(am) }
-            0x05 => { let am = self.zero_page(); self.ora(am) }
-            0x15 => { let am = self.zero_page_x(); self.ora(am) }
 
             // Branching
             0x10 => self.bpl(),
@@ -212,7 +212,7 @@ impl Cpu {
             0xCC => { let am = self.absolute(); self.cpy(am) }
 
             // Jumps
-            // TODO: 0x4C => self.jmp(),
+            // 0x4C => { let am = self.absolute(); self.jmp(ImmediateAM) }
             // TODO: 0x6C => { let am = self.indirect(); self.jmp(am) }
             0x20 => self.jsr(),
 
@@ -578,8 +578,9 @@ impl Cpu {
     }
 
     // Jumps
-    // fn jmp(&mut self) {
-    //     let address = self.load_word_and_inc_pc();
+    //fn jmp<AM:AddressingMode>(&mut self, am: AM) {
+    // fn jmp<AM:AbsoluteAM>(&mut self, am: AM) {
+    //     let address = am.load(self);
     //     self.regs.pc = address;
     // }
 
