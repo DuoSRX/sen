@@ -188,6 +188,9 @@ impl Cpu {
             0xC4 => { let am = self.zero_page(); self.cpy(am) }
             0xCC => { let am = self.absolute(); self.cpy(am) }
 
+            0x24 => { let am = self.zero_page(); self.bit(am) }
+            0x2C => { let am = self.absolute(); self.bit(am) }
+
             // Jumps
             0x4C => self.jmp(),
             0x6C => self.jmp_indirect(),
@@ -271,7 +274,6 @@ impl Cpu {
             // TODO: RTI
             // TODO: RTS
             // TODO: BRK
-            // TODO: BIT
 
             unknown => panic!("Unkown opcode {:02x}", unknown)
         }
@@ -779,6 +781,21 @@ impl Cpu {
     fn cpy<AM:AddressingMode>(&mut self, am: AM) {
         let y = self.regs.y;
         self.generic_comparison(am, y);
+    }
+
+    fn bit<AM:AddressingMode>(&mut self, am: AM) {
+        let a = self.regs.a;
+        let byte = am.load(self);
+        let result = a & byte;
+        let overflow = (result >> 6) & 1;
+
+        if overflow != 0 {
+            self.set_flag(OVERFLOW_FLAG)
+        } else {
+            self.unset_flag(OVERFLOW_FLAG)
+        }
+
+        self.set_nz_flags(result);
     }
 
     fn generic_comparison<AM:AddressingMode>(&mut self, am: AM, reg: u8) {
