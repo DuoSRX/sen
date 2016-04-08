@@ -1,4 +1,8 @@
+use std;
+
+use memory::Memory;
 use memory::Ram;
+use cartridge::Cartridge;
 
 const CARRY_FLAG:     u8 = 0b00000001;
 const ZERO_FLAG:      u8 = 0b00000010;
@@ -52,32 +56,36 @@ impl Registers {
             y: 0,
             p: 0x24, // 0b00100100
             s: 0xFD, // 253
-            pc: 0xC000,
+            pc: 0xFFFC,
         }
     }
 }
 
-#[derive(Debug)]
 pub struct Cpu {
     regs: Registers,
-    pub ram: Ram,
+    ram: Memory
 }
 
 impl Cpu {
-    pub fn new() -> Cpu {
+    pub fn new(cartridge: Cartridge) -> Cpu {
         Cpu {
             regs: Registers::new(),
-            ram: Ram {
-                val: [0; 0xFFFF]
+            ram: Memory {
+                ram: Ram {
+                    val: [0; 0xFFFF]
+                },
+                cartridge: cartridge
             }
+
         }
     }
 
     pub fn step(&mut self) {
         let instruction = self.load_byte_and_inc_pc();
-        println!("{:?}", self);
-        println!("Flags: {:08b}", self.regs.p);
-        println!("Decoding: {:02x} at PC = {:02x}", instruction, self.regs.pc - 1);
+        println!("");
+        print!("{:?}", self);
+        print!(" Flags: {:08b}", self.regs.p);
+        println!(" Decoding: {:02x} at PC = {:02x}", instruction, self.regs.pc - 1);
         self.execute_instruction(instruction);
         // TODO: Handle cycle count
     }
@@ -838,5 +846,17 @@ impl Cpu {
     fn rts(&mut self) {
         let pc = self.pop_word();
         self.regs.pc = pc + 1;
+    }
+}
+
+impl std::fmt::Debug for Cpu {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        //f.write_fmt(format_args!("{:?}", &self.val[0..10]))
+        f.write_fmt(format_args!("A: {:02x} X: {:02x} Y: {:02x} PC: {:04x}",
+            self.regs.a,
+            self.regs.x,
+            self.regs.y,
+            self.regs.pc
+        ))
     }
 }

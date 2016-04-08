@@ -5,6 +5,7 @@ use std::fmt;
 
 // Reference: http://wiki.nesdev.com/w/index.php/INES
 
+
 #[allow(dead_code)]
 pub struct NesHeader {
     magic: [u8; 4], // Magic number ("NES\x1a")
@@ -16,7 +17,6 @@ pub struct NesHeader {
     //unused: [u8; 7] // Unused stuff
 }
 
-#[allow(dead_code)]
 pub struct Cartridge {
     pub header: NesHeader,
     pub prg: Vec<u8>,
