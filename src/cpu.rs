@@ -4,7 +4,7 @@ const CARRY_FLAG:     u8 = 0b00000001;
 const ZERO_FLAG:      u8 = 0b00000010;
 const INTERRUPT_FLAG: u8 = 0b00000100;
 const DECIMAL_FLAG:   u8 = 0b00001000;
-//const BREAK_FLAG:    u8 = 0b00010000;
+const BREAK_FLAG:     u8 = 0b00010000;
 const OVERFLOW_FLAG:  u8 = 0b01000000;
 const NEGATIVE_FLAG:  u8 = 0b10000000;
 
@@ -289,7 +289,7 @@ impl Cpu {
         lo | hi << 8
     }
 
-    pub fn store_byte(&mut self, address: u16, value: u8) {
+    fn store_byte(&mut self, address: u16, value: u8) {
         self.ram.store(address, value)
     }
 
@@ -313,6 +313,7 @@ impl Cpu {
         a | b << 8
     }
 
+    // Stack operations
     fn push_byte(&mut self, value: u8) {
         let stack_pointer = self.regs.s;
         self.store_byte(0x100 + stack_pointer as u16, value);
@@ -334,7 +335,7 @@ impl Cpu {
 
     fn pop_word(&mut self) -> u16 {
         let stack_pointer = self.regs.s;
-        let word = self.load_byte(0x100 + stack_pointer as u16 + 1);
+        let word = self.load_word(0x100 + stack_pointer as u16 + 1);
         self.regs.s += 2;
         word
     }
@@ -667,11 +668,12 @@ impl Cpu {
     }
 
     fn php(&mut self) {
-        let a = self.regs.a;
-        self.push_byte(a)
+        let p = self.regs.p;
+        self.push_byte(p | BREAK_FLAG)
     }
 
     fn plp(&mut self) {
+        // FIXME: This does not work!
         self.regs.p = self.pop_byte()
     }
 
@@ -819,8 +821,8 @@ impl Cpu {
     }
 
     fn brk(&mut self) {
-        self.push_word(self.regs.pc + 1);
-        self.php();
+        let pc = self.regs.pc;
+        self.push_word(pc + 1);
         self.sei();
         self.regs.pc = self.load_word(0xFFFE);
     }

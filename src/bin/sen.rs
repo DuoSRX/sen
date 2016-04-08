@@ -15,6 +15,8 @@ fn main() {
     println!("{}", cartridge.header);
 
     let mut cpu = Cpu::new();
+    cpu.step();
+
     // cpu.step();
     // println!("{:?}", cpu);
     // println!("Flags: {:08b}", cpu.regs.p);
