@@ -189,8 +189,8 @@ impl Cpu {
             0xCC => { let am = self.absolute(); self.cpy(am) }
 
             // Jumps
-            // 0x4C => { let am = self.absolute(); self.jmp(ImmediateAM) }
-            // TODO: 0x6C => { let am = self.indirect(); self.jmp(am) }
+            0x4C => self.jmp(),
+            0x6C => self.jmp_indirect(),
             0x20 => self.jsr(),
 
             // Stack
@@ -632,11 +632,17 @@ impl Cpu {
     }
 
     // Jumps
-    //fn jmp<AM:AddressingMode>(&mut self, am: AM) {
-    // fn jmp<AM:AbsoluteAM>(&mut self, am: AM) {
-    //     let address = am.load(self);
-    //     self.regs.pc = address;
-    // }
+    fn jmp(&mut self) {
+         let address = self.load_word_and_inc_pc();
+         self.regs.pc = address;
+    }
+
+    fn jmp_indirect(&mut self) {
+        // TODO: Implement the 6502 bug
+        let indirect = self.load_word_and_inc_pc();
+        let address = self.load_word(indirect);
+        self.regs.pc = address;
+    }
 
     fn jsr(&mut self) {
         let address = self.load_word_and_inc_pc();
