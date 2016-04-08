@@ -271,9 +271,9 @@ impl Cpu {
             0x8C => { let am = self.absolute(); self.sty(am) }
 
             // Interrupt and misc
-            // TODO: RTI
-            // TODO: RTS
-            // TODO: BRK
+            0x00 => self.brk(),
+            0x40 => self.rti(),
+            0x60 => self.rts(),
 
             unknown => panic!("Unkown opcode {:02x}", unknown)
         }
@@ -327,9 +327,16 @@ impl Cpu {
 
     fn pop_byte(&mut self) -> u8 {
         let stack_pointer = self.regs.s;
-        let byte = self.load_byte(0x100 + stack_pointer as u16);
+        let byte = self.load_byte(0x100 + stack_pointer as u16 + 1);
         self.regs.s += 1;
         byte
+    }
+
+    fn pop_word(&mut self) -> u16 {
+        let stack_pointer = self.regs.s;
+        let word = self.load_byte(0x100 + stack_pointer as u16 + 1);
+        self.regs.s += 2;
+        word
     }
 
     fn set_nz_flags(&mut self, value: u8) {
@@ -809,5 +816,25 @@ impl Cpu {
         }
 
         self.set_nz_flags(value);
+    }
+
+    fn brk(&mut self) {
+        self.push_word(self.regs.pc + 1);
+        self.php();
+        self.sei();
+        self.regs.pc = self.load_word(0xFFFE);
+    }
+
+    fn rti(&mut self) {
+        let flags = self.pop_byte();
+        let pc = self.pop_word();
+        // FIXME: Is that even correct? I feel like there should be some bit fiddling happening
+        self.regs.s = flags;
+        self.regs.pc = pc;
+    }
+
+    fn rts(&mut self) {
+        let pc = self.pop_word();
+        self.regs.pc = pc + 1;
     }
 }
