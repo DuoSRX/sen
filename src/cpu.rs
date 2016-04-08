@@ -58,7 +58,7 @@ impl AddressingMode for ImmediateAM {
     fn store(&self, _cpu: &mut Cpu, _value: u8) { panic!("uhhh I can't store using Immediate Addressing Mode") }
 }
 
-struct Ram {
+pub struct Ram {
     pub val: [u8; 0x800]
 }
 
@@ -82,7 +82,7 @@ impl Ram {
 #[derive(Debug)]
 pub struct Cpu {
     regs: Registers,
-    ram: Ram,
+    pub ram: Ram,
 }
 
 impl Cpu {
@@ -96,6 +96,8 @@ impl Cpu {
     }
 
     pub fn step(&mut self) {
+        println!("{:?}", self);
+        println!("Flags: {:08b}", self.regs.p);
         let instruction = self.load_byte_and_inc_pc();
         self.execute_instruction(instruction);
         // TODO: Handle cycle count
