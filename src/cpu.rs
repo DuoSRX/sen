@@ -1,4 +1,4 @@
-use std;
+use memory::Ram;
 
 const CARRY_FLAG:     u8 = 0b00000001;
 const ZERO_FLAG:      u8 = 0b00000010;
@@ -7,30 +7,6 @@ const DECIMAL_FLAG:   u8 = 0b00001000;
 //const BREAK_FLAG:    u8 = 0b00010000;
 const OVERFLOW_FLAG:  u8 = 0b01000000;
 const NEGATIVE_FLAG:  u8 = 0b10000000;
-
-#[allow(dead_code)]
-#[derive(Debug)]
-struct Registers {
-    a: u8,
-    x: u8,
-    y: u8,
-    p: u8,
-    s: u8,
-    pc: u16
-}
-
-impl Registers {
-    fn new() -> Registers {
-        Registers {
-            a: 0,
-            x: 0,
-            y: 0,
-            p: 0x24, // 0b00100100
-            s: 0xFD, // 253
-            pc: 0,
-        }
-    }
-}
 
 // The addressing mode trait was liberally inspired by https://github.com/pcwalton/sprocketnes
 trait AddressingMode {
@@ -58,24 +34,26 @@ impl AddressingMode for ImmediateAM {
     fn store(&self, _cpu: &mut Cpu, _value: u8) { panic!("uhhh I can't store using Immediate Addressing Mode") }
 }
 
-pub struct Ram {
-    pub val: [u8; 0x800]
+#[derive(Debug)]
+struct Registers {
+    a: u8,
+    x: u8,
+    y: u8,
+    p: u8,
+    s: u8,
+    pc: u16
 }
 
-impl std::fmt::Debug for Ram {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}", &self.val[0..10]))
-    }
-}
-
-// TODO: Factor out that code (we'll need to handle mappers and such)
-impl Ram {
-    fn load(&self, address: u16) -> u8 {
-        self.val[address as usize & 0x7ff]
-    }
-
-    fn store(&mut self, address: u16, value: u8) {
-        self.val[address as usize & 0x7ff] = value;
+impl Registers {
+    fn new() -> Registers {
+        Registers {
+            a: 0,
+            x: 0,
+            y: 0,
+            p: 0x24, // 0b00100100
+            s: 0xFD, // 253
+            pc: 0xC000,
+        }
     }
 }
 
@@ -90,15 +68,16 @@ impl Cpu {
         Cpu {
             regs: Registers::new(),
             ram: Ram {
-                val: [0; 0x800]
+                val: [0; 0xFFFF]
             }
         }
     }
 
     pub fn step(&mut self) {
+        let instruction = self.load_byte_and_inc_pc();
         println!("{:?}", self);
         println!("Flags: {:08b}", self.regs.p);
-        let instruction = self.load_byte_and_inc_pc();
+        println!("Decoding: {:02x} at PC = {:02x}", instruction, self.regs.pc - 1);
         self.execute_instruction(instruction);
         // TODO: Handle cycle count
     }
@@ -308,7 +287,7 @@ impl Cpu {
         lo | hi << 8
     }
 
-    fn store_byte(&mut self, address: u16, value: u8) {
+    pub fn store_byte(&mut self, address: u16, value: u8) {
         self.ram.store(address, value)
     }
 
@@ -329,7 +308,7 @@ impl Cpu {
     fn load_word_and_inc_pc(&mut self) -> u16 {
         let a = self.load_byte_and_inc_pc() as u16;
         let b = self.load_byte_and_inc_pc() as u16;
-        a | (b << 8)
+        a | b << 8
     }
 
     fn push_byte(&mut self, value: u8) {
