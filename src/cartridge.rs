@@ -1,11 +1,12 @@
 //use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
+use std::fmt;
 
 // Reference: http://wiki.nesdev.com/w/index.php/INES
 
 #[allow(dead_code)]
-struct NesHeader {
+pub struct NesHeader {
     magic: [u8; 4], // Magic number ("NES\x1a")
     prg_size: u8,   // PRG Rom banks (by increments of 16KB)
     chr_size: u8,   // CHR Rom banks (by increments of 8KB)
@@ -17,9 +18,10 @@ struct NesHeader {
 
 #[allow(dead_code)]
 pub struct Cartridge {
-    prg: Vec<u8>,
-    chr: Vec<u8>,
-    ram: [u8; 0x2000]
+    pub header: NesHeader,
+    pub prg: Vec<u8>,
+    pub chr: Vec<u8>,
+    pub ram: [u8; 0x2000]
 }
 
 // TODO: Handle EOF errors
@@ -54,9 +56,16 @@ impl Cartridge {
         file_to_buffer(&mut chr_rom, &mut file);
 
         Cartridge {
+            header: header,
             prg: prg_rom,
             chr: chr_rom,
             ram: [0; 0x2000]
         }
+    }
+}
+
+impl fmt::Display for NesHeader {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "PRG {}KB; CHR {}KB", self.prg_size as usize * 16, self.chr_size as usize * 8)
     }
 }
