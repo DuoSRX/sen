@@ -55,6 +55,12 @@ impl Ppu {
         //panic!("PPU::store({:04x} at {:04x}) not implemented yet", value, address);
         match address {
             0x2000 => { self.regs.control = value }
+            0x2001 => { self.regs.mask = value }
+            0x2003 => { self.regs.oam_address = value }
+            0x2004 => { self.regs.oam_data = value }
+            0x2005 => { self.regs.scroll = value }
+            0x2006 => { self.regs.address = value }
+            0x2007 => { self.regs.data = value }
             _ => panic!("PPU::store({:04x} at {:04x}) not implemented yet", value, address)
         };
     }

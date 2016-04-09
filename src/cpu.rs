@@ -55,7 +55,7 @@ impl Registers {
             a: 0,
             x: 0,
             y: 0,
-            p: 0x34, // 0b00110100
+            p: 0x24, // 0b00110100
             s: 0xFD, // 253
             pc: 0
         }
@@ -83,7 +83,7 @@ impl Cpu {
     }
 
     pub fn reset(&mut self) {
-        let start = self.load_word(0xFFFC);
+        let start = self.load_word(0xFFFC) - 4;
         println!("Starting at {:04x}", start);
         self.regs.pc = start;
     }
@@ -91,7 +91,8 @@ impl Cpu {
     pub fn step(&mut self) {
         let instruction = self.load_byte_and_inc_pc();
         println!("");
-        print!("{:04x}: {:?}", self.regs.pc - 1 - 0xc79e, self);
+        //print!("{:04x}: {:?}", self.regs.pc - 1 - 0xc000, self);
+        print!("{:04x}: {:?}", self.regs.pc - 1, self);
         print!(" Flags: {:08b}", self.regs.p);
         println!(" Instruction: {:02x}", instruction);
         let pc = self.regs.pc;
@@ -102,7 +103,13 @@ impl Cpu {
 
     fn execute_instruction(&mut self, instruction: u8) {
         match instruction {
-            0xEA => (), // NOP
+            0xEA => self.nop(0),
+            0x1A => self.nop(0),
+            0x04 => self.nop(1),
+            0x0C => self.nop(1),
+            0x14 => self.nop(2),
+            0x44 => self.nop(1),
+            0x64 => self.nop(1),
 
             // Registers
             0xAA => self.tax(),
@@ -117,13 +124,13 @@ impl Cpu {
             0xBA => self.tsx(),
 
             // Rotations
-            0x2A => self.rol(ImmediateAM),
+            0x2A => self.rol(AccumulatorAM),
             0x26 => { let am = self.zero_page(); self.rol(am) }
             0x36 => { let am = self.zero_page_x(); self.rol(am) }
             0x2E => { let am = self.absolute(); self.rol(am) }
             0x3E => { let am = self.absolute_x(); self.rol(am) }
 
-            0x6A => self.ror(ImmediateAM),
+            0x6A => self.ror(AccumulatorAM),
             0x66 => { let am = self.zero_page(); self.rol(am) }
             0x76 => { let am = self.zero_page_x(); self.rol(am) }
             0x6E => { let am = self.absolute(); self.rol(am) }
@@ -228,7 +235,7 @@ impl Cpu {
             0xE6 => { let am = self.zero_page(); self.inc(am) }
             0xF6 => { let am = self.zero_page_x(); self.inc(am) }
             0xEE => { let am = self.absolute(); self.inc(am) }
-            0xFF => { let am = self.absolute_x(); self.inc(am) }
+            0xFE => { let am = self.absolute_x(); self.inc(am) }
 
             // Arithmetic
             0x69 => self.adc(ImmediateAM),
@@ -395,12 +402,12 @@ impl Cpu {
     }
 
     fn zero_page_x(&mut self) -> MemoryAM {
-        let address = self.load_byte_and_inc_pc() + self.regs.x;
+        let address = self.load_byte_and_inc_pc().wrapping_add(self.regs.x);
         MemoryAM { address: address as u16 }
     }
 
     fn zero_page_y(&mut self) -> MemoryAM {
-        let address = self.load_byte_and_inc_pc() + self.regs.y;
+        let address = self.load_byte_and_inc_pc().wrapping_add(self.regs.y);
         MemoryAM { address: address as u16 }
     }
 
@@ -410,12 +417,12 @@ impl Cpu {
     }
 
     fn absolute_x(&mut self) -> MemoryAM {
-        let address = self.load_word_and_inc_pc() + self.regs.x as u16;
+        let address = self.load_word_and_inc_pc().wrapping_add(self.regs.x as u16);
         MemoryAM { address: address }
     }
 
     fn absolute_y(&mut self) -> MemoryAM {
-        let address = self.load_word_and_inc_pc() + self.regs.y as u16;
+        let address = self.load_word_and_inc_pc().wrapping_add(self.regs.y as u16);
         MemoryAM { address: address }
     }
 
@@ -431,11 +438,15 @@ impl Cpu {
     fn indirect_y(&mut self) -> MemoryAM {
         let page = self.load_byte_and_inc_pc();
         let y = self.regs.y as u16;
-        let address = self.load_word(page as u16) + y;
+        let address = self.load_word(page as u16).wrapping_add(y);
         MemoryAM { address: address }
     }
 
     // Instructions
+    fn nop(&mut self, to_skip: u8) {
+        self.regs.pc += to_skip as u16;
+    }
+
     // Arithmetic
     fn adc<AM: AddressingMode>(&mut self, am: AM) {
         let value = am.load(self);
@@ -457,7 +468,7 @@ impl Cpu {
 
     fn sbc<AM: AddressingMode>(&mut self, am: AM) {
         let value = am.load(self);
-        let mut result = value as u32 - self.regs.a as u32;
+        let mut result = (value as u32).wrapping_sub(self.regs.a as u32);
         if !self.check_flag(CARRY_FLAG) {
             result -= 1;
         }
@@ -538,7 +549,7 @@ impl Cpu {
     }
 
     fn inx(&mut self) {
-        let x = self.regs.x + 1;
+        let x = self.regs.x.wrapping_add(1);
         self.regs.x = x;
         self.set_nz_flags(x);
     }
@@ -563,7 +574,7 @@ impl Cpu {
     }
 
     fn iny(&mut self) {
-        let y = self.regs.y + 1;
+        let y = self.regs.y.wrapping_add(1);
         self.regs.y = y;
         self.set_nz_flags(y);
     }
@@ -673,8 +684,11 @@ impl Cpu {
     fn jmp_indirect(&mut self) {
         // TODO: Implement the 6502 bug
         let indirect = self.load_word_and_inc_pc();
-        let address = self.load_word(indirect);
-        self.regs.pc = address;
+
+        let low = self.load_byte(indirect);
+        let high = self.load_byte((indirect & 0xFF00) | ((indirect + 1) & 0x00FF));
+
+        self.regs.pc = (high as u16) << 8 | low as u16;
     }
 
     fn jsr(&mut self) {
@@ -814,15 +828,14 @@ impl Cpu {
 
     fn generic_comparison<AM:AddressingMode>(&mut self, am: AM, reg: u8) {
         let byte = am.load(self);
-        let value = reg - byte;
+        let value = reg.wrapping_sub(byte);
+        self.set_nz_flags(value);
 
         if reg >= byte {
             self.set_flag(CARRY_FLAG);
         } else {
             self.unset_flag(CARRY_FLAG);
         }
-
-        self.set_nz_flags(value);
     }
 
     fn brk(&mut self) {
@@ -849,10 +862,11 @@ impl Cpu {
 impl std::fmt::Debug for Cpu {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         //f.write_fmt(format_args!("{:?}", &self.val[0..10]))
-        f.write_fmt(format_args!("A: {:02x} X: {:02x} Y: {:02x} S: {:02x} PC: {:04x}",
+        f.write_fmt(format_args!("A:{:02x} X:{:02x} Y:{:02x} P:{:02X} SP:{:02X} PC:{:04x}",
             self.regs.a,
             self.regs.x,
             self.regs.y,
+            self.regs.p,
             self.regs.s,
             self.regs.pc
         ))
