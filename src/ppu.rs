@@ -20,7 +20,7 @@ impl Registers {
         Registers {
             control: 0,
             mask: 0,
-            status: 0x80,
+            status: 0,//0x80,
             oam_address: 0,
             oam_data: 0,
             scroll: 0,

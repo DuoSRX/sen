@@ -474,13 +474,13 @@ impl Cpu {
     }
 
     fn inc<AM: AddressingMode>(&mut self, am: AM) {
-        let val = am.load(self) + 1;
+        let val = am.load(self).wrapping_add(1);
         self.set_nz_flags(val);
         am.store(self, val & 0xFF);
     }
 
     fn dec<AM: AddressingMode>(&mut self, am: AM) {
-        let val = am.load(self) - 1;
+        let val = am.load(self).wrapping_sub(1);
         self.set_nz_flags(val);
         am.store(self, val & 0xFF);
     }
