@@ -20,7 +20,7 @@ impl Registers {
         Registers {
             control: 0,
             mask: 0,
-            status: 0,
+            status: 0x80,
             oam_address: 0,
             oam_data: 0,
             scroll: 0,
@@ -47,11 +47,15 @@ impl Ppu {
         //panic!("PPU::load({:04x}) not implemented yet", address);
         match address {
             0x2002 => self.regs.status,
-            _ => 0u8
+            _ => { panic!("oops"); }
         }
     }
 
     pub fn store(&mut self, address: u16, value: u8) {
-        panic!("PPU::store({:04x} at {:04x}) not implemented yet", value, address);
+        //panic!("PPU::store({:04x} at {:04x}) not implemented yet", value, address);
+        match address {
+            0x2000 => { self.regs.control = value }
+            _ => panic!("PPU::store({:04x} at {:04x}) not implemented yet", value, address)
+        };
     }
 }

@@ -33,6 +33,8 @@ impl Memory {
     pub fn store(&mut self, address: u16, value: u8) {
         if address < 0x2000 {
             self.ram.store(address, value);
+        } else if address < 0x4000 {
+            self.ppu.store(0x2000 + address % 8, value);
         } else if address < 0x6000 {
             println!("Writing {:08b} to PPU at {:04x} (Not implemented yet)", value, address);
             //panic!("Address storing at {:04x} not implemented", address);
