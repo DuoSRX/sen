@@ -1,21 +1,24 @@
 use std;
 
 use cartridge::Cartridge;
+use ppu::Ppu;
 
 //#[derive(Debug)]
 pub struct Memory {
     pub ram: Ram,
-    pub cartridge: Cartridge
+    pub cartridge: Cartridge,
+    pub ppu: Ppu
     // TODO: apu
-    // TODO: ppu
     // TODO: controllers
 }
 
 impl Memory {
-    pub fn load(&self, address: u16) -> u8 {
+    pub fn load(&mut self, address: u16) -> u8 {
         //println!("Address: {:02x} ({})", address, address);
         if address < 0x2000 {
             return self.ram.load(address);
+        } else if address < 0x4000 {
+            return self.ppu.load(0x2000 + address % 8);
         } else if address < 0x6000 {
             println!("Reading from PPU at {:04x}", address);
             return 0;

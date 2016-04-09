@@ -1,8 +1,9 @@
 use std;
 
+use cartridge::Cartridge;
 use memory::Memory;
 use memory::Ram;
-use cartridge::Cartridge;
+use ppu::Ppu;
 
 const CARRY_FLAG:     u8 = 0b00000001;
 const ZERO_FLAG:      u8 = 0b00000010;
@@ -56,7 +57,7 @@ impl Registers {
             y: 0,
             p: 0x24, // 0b00100100
             s: 0xFD, // 253
-            pc: 0xFFFC,
+            pc: 0
         }
     }
 }
@@ -67,17 +68,23 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new(cartridge: Cartridge) -> Cpu {
+    pub fn new(cartridge: Cartridge, ppu: Ppu) -> Cpu {
         Cpu {
             regs: Registers::new(),
             ram: Memory {
                 ram: Ram {
                     val: [0; 0xFFFF]
                 },
-                cartridge: cartridge
+                cartridge: cartridge,
+                ppu: ppu
             }
 
         }
+    }
+
+    pub fn reset(&mut self) {
+        let start = self.load_word(0xFFFC);
+        self.regs.pc = start;
     }
 
     pub fn step(&mut self) {
@@ -86,6 +93,8 @@ impl Cpu {
         print!("{:?}", self);
         print!(" Flags: {:08b}", self.regs.p);
         println!(" Decoding: {:02x} at PC = {:02x}", instruction, self.regs.pc - 1);
+        let pc = self.regs.pc;
+        println!("{:02x} {:02x} {:02x}", instruction, self.load_byte(pc), self.load_byte(pc + 1));
         self.execute_instruction(instruction);
         // TODO: Handle cycle count
     }
