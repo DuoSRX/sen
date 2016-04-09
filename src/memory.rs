@@ -34,7 +34,7 @@ impl Memory {
         if address < 0x2000 {
             self.ram.store(address, value);
         } else if address < 0x6000 {
-            println!("Writing {:02x} to PPU at {:04x}", address, value);
+            println!("Writing {:08b} to PPU at {:04x} (Not implemented yet)", value, address);
             //panic!("Address storing at {:04x} not implemented", address);
         } else {
             // TODO: Move to a mapper module?

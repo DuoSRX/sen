@@ -44,7 +44,11 @@ impl Ppu {
     }
 
     pub fn load(&mut self, address: u16) -> u8 {
-        panic!("PPU::load({:04x}) not implemented yet", address);
+        //panic!("PPU::load({:04x}) not implemented yet", address);
+        match address {
+            0x2002 => self.regs.status,
+            _ => 0u8
+        }
     }
 
     pub fn store(&mut self, address: u16, value: u8) {
