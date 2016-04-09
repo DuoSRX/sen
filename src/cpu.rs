@@ -83,33 +83,47 @@ impl Cpu {
     }
 
     pub fn reset(&mut self) {
-        let start = self.load_word(0xFFFC) - 4;
+        let start = self.load_word(0xFFFC);
         println!("Starting at {:04x}", start);
+        //println!("{:04x}", self.load_word(0xE210));
         self.regs.pc = start;
     }
 
     pub fn step(&mut self) {
         let instruction = self.load_byte_and_inc_pc();
-        println!("");
+        //println!("");
         //print!("{:04x}: {:?}", self.regs.pc - 1 - 0xc000, self);
         print!("{:04x}: {:?}", self.regs.pc - 1, self);
         print!(" Flags: {:08b}", self.regs.p);
-        println!(" Instruction: {:02x}", instruction);
+        //println!(" Instruction: {:02x}", instruction);
         let pc = self.regs.pc;
-        println!("{:02x} {:02x} {:02x}", instruction, self.load_byte(pc), self.load_byte(pc + 1));
+        println!(" Instr {:02x} {:02x} {:02x}", instruction, self.load_byte(pc), self.load_byte(pc + 1));
         self.execute_instruction(instruction);
         // TODO: Handle cycle count
     }
 
     fn execute_instruction(&mut self, instruction: u8) {
         match instruction {
-            0xEA => self.nop(0),
-            0x1A => self.nop(0),
+            // NOPs (all illegal except 0xEA)
+            0xEA => (),
+            0x1A => (),
+            0x3A => (),
+            0x5A => (),
+            0x7A => (),
+            0xDA => (),
+            0xFA => (),
             0x04 => self.nop(1),
             0x0C => self.nop(1),
-            0x14 => self.nop(2),
             0x44 => self.nop(1),
             0x64 => self.nop(1),
+            0x14 => self.nop(2),
+            0x80 => self.nop(2),
+            0x1C => self.nop(2),
+            0x3C => self.nop(2),
+            0x5C => self.nop(2),
+            0x7C => self.nop(2),
+            0xDC => self.nop(2),
+            0xFC => self.nop(2),
 
             // Registers
             0xAA => self.tax(),
@@ -855,6 +869,7 @@ impl Cpu {
 
     fn rts(&mut self) {
         let pc = self.pop_word();
+        //println!("RTS {:04X}", pc);
         self.regs.pc = pc + 1;
     }
 }
