@@ -734,68 +734,50 @@ impl Cpu {
     }
 
     // Branching
-    // TODO: All of these are super similar. Refactor that stuff!
     fn bpl(&mut self) {
         let negative = self.check_flag(NEGATIVE_FLAG);
-        let byte = self.load_byte_and_inc_pc();
-        if !negative {
-            self.regs.pc += byte as u16;
-        }
+        self.generic_branching(!negative);
     }
 
     fn bmi(&mut self) {
         let plus = self.check_flag(NEGATIVE_FLAG);
-        let byte = self.load_byte_and_inc_pc();
-        if plus {
-            self.regs.pc += byte as u16;
-        }
+        self.generic_branching(plus);
     }
 
     fn bvc(&mut self) {
-        let overflow = !self.check_flag(OVERFLOW_FLAG);
-        let byte = self.load_byte_and_inc_pc();
-        if overflow {
-            self.regs.pc += byte as u16;
-        }
+        let overflow = self.check_flag(OVERFLOW_FLAG);
+        self.generic_branching(!overflow);
     }
 
     fn bvs(&mut self) {
         let overflow = self.check_flag(OVERFLOW_FLAG);
-        let byte = self.load_byte_and_inc_pc();
-        if overflow {
-            self.regs.pc += byte as u16;
-        }
+        self.generic_branching(overflow);
     }
 
     fn bcc(&mut self) {
         let carry = !self.check_flag(CARRY_FLAG);
-        let byte = self.load_byte_and_inc_pc();
-        if carry {
-            self.regs.pc += byte as u16;
-        }
+        self.generic_branching(!carry);
     }
 
     fn bcs(&mut self) {
         let carry = self.check_flag(CARRY_FLAG);
-        let byte = self.load_byte_and_inc_pc();
-        if carry {
-            self.regs.pc += byte as u16;
-        }
+        self.generic_branching(carry);
     }
 
     fn bne(&mut self) {
         let zero = self.check_flag(ZERO_FLAG);
-        let byte = self.load_byte_and_inc_pc();
-        if zero {
-            self.regs.pc += byte as u16;
-        }
+        self.generic_branching(zero);
     }
 
     fn beq(&mut self) {
         let zero = self.check_flag(ZERO_FLAG);
-        let byte = self.load_byte_and_inc_pc();
-        if zero {
-            self.regs.pc += byte as u16;
+        self.generic_branching(!zero);
+    }
+
+    fn generic_branching(&mut self, go: bool) {
+        let byte = self.load_byte_and_inc_pc() as i8;
+        if go {
+            self.regs.pc = (self.regs.pc as i32 + byte as i32) as u16;
         }
     }
 
