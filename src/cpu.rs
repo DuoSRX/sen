@@ -44,9 +44,17 @@ pub struct Registers {
     pub a: u8,
     pub x: u8,
     pub y: u8,
-    pub p: u8,
     pub s: u8,
-    pub pc: u16
+    pub pc: u16,
+
+    // flags
+    carry: bool,
+    zero: bool,
+    interrupt: bool,
+    brk: bool,
+    decimal: bool,
+    overflow: bool,
+    sign: bool
 }
 
 impl Registers {
@@ -55,9 +63,17 @@ impl Registers {
             a: 0,
             x: 0,
             y: 0,
-            p: 0x24, // 0b00110100
             s: 0xFD, // 253
-            pc: 0
+            pc: 0,
+
+            // flags
+            carry: false,
+            zero: false,
+            interrupt: false,
+            brk: false,
+            decimal: false,
+            overflow: false,
+            sign: false
         }
     }
 }
@@ -94,7 +110,7 @@ impl Cpu {
         //println!("");
         //print!("{:04x}: {:?}", self.regs.pc - 1 - 0xc000, self);
         print!("{:04x}: {:?}", self.regs.pc - 1, self);
-        print!(" Flags: {:08b}", self.regs.p);
+        //print!(" Flags: {:08b}", self.regs.p);
         //println!(" Instruction: {:02x}", instruction);
         let pc = self.regs.pc;
         println!(" Instr {:02x} {:02x} {:02x}", instruction, self.load_byte(pc), self.load_byte(pc + 1));
@@ -380,33 +396,8 @@ impl Cpu {
     }
 
     fn set_nz_flags(&mut self, value: u8) {
-        if value == 0 {
-            self.set_flag(ZERO_FLAG)
-        } else {
-            self.unset_flag(ZERO_FLAG)
-        }
-
-        if (value & 0x80) != 0 {
-            self.set_flag(NEGATIVE_FLAG)
-        } else {
-            self.unset_flag(NEGATIVE_FLAG)
-        }
-    }
-
-    fn check_flag(&mut self, flag: u8) -> bool {
-        self.get_flag(flag) != 0
-    }
-
-    fn get_flag(&mut self, flag: u8) -> u8 {
-        self.regs.p & flag
-    }
-
-    fn set_flag(&mut self, flag: u8) {
-        self.regs.p |= flag;
-    }
-
-    fn unset_flag(&mut self, flag: u8) {
-        self.regs.p &= !flag;
+        self.regs.zero = value == 0;
+        self.regs.sign = (value & 0x80) != 0;
     }
 
     // Generate addressing modes
@@ -465,24 +456,15 @@ impl Cpu {
     fn adc<AM: AddressingMode>(&mut self, am: AM) {
         let value = am.load(self);
         let mut result = value as u32 + self.regs.a as u32;
-        if self.check_flag(CARRY_FLAG) {
+        if self.regs.carry {
             result += 1;
         }
 
-        if (result & 0x100) != 0 {
-            self.set_flag(CARRY_FLAG);
-        } else {
-            self.unset_flag(CARRY_FLAG);
-        }
-
+        self.regs.carry = (result & 0x100) != 0;
         self.set_nz_flags(result as u8);
 
         let a = self.regs.a;
-        if (a ^ value) & 0x80 == 0 && (a ^ result as u8) & 0x80 == 0x80 {
-            self.set_flag(OVERFLOW_FLAG);
-        } else {
-            self.unset_flag(OVERFLOW_FLAG);
-        }
+        self.regs.overflow = (a ^ value) & 0x80 == 0 && (a ^ result as u8) & 0x80 == 0x80;
 
         self.regs.a = (result as u8) & 0xFF;
     }
@@ -490,24 +472,15 @@ impl Cpu {
     fn sbc<AM: AddressingMode>(&mut self, am: AM) {
         let value = am.load(self);
         let mut result = (value as u32).wrapping_sub(self.regs.a as u32);
-        if !self.check_flag(CARRY_FLAG) {
+        if !self.regs.carry {
             result -= 1;
         }
 
-        if (result & 0x100) == 0 {
-            self.set_flag(CARRY_FLAG);
-        } else {
-            self.unset_flag(CARRY_FLAG);
-        }
-
+        self.regs.carry = (result & 0x100) == 0;
         self.set_nz_flags(result as u8);
 
         let a = self.regs.a;
-        if (a ^ value) & 0x80 == 0 && (a ^ result as u8) & 0x80 == 0x80 {
-            self.set_flag(OVERFLOW_FLAG);
-        } else {
-            self.unset_flag(OVERFLOW_FLAG);
-        }
+        self.regs.overflow = (a ^ value) & 0x80 == 0 && (a ^ result as u8) & 0x80 == 0x80;
 
         self.regs.a = (result as u8) & 0xFF;
     }
@@ -623,18 +596,13 @@ impl Cpu {
         let carry = (value & 0x80) != 0;
         let result = value << 1;
 
-        if self.check_flag(CARRY_FLAG) {
+        if self.regs.carry {
             am.store(self, result | 1);
         } else {
             am.store(self, result);
         }
 
-        if carry {
-            self.set_flag(CARRY_FLAG);
-        } else {
-            self.unset_flag(CARRY_FLAG);
-        }
-
+        self.regs.carry = carry;
         self.set_nz_flags(result);
         am.store(self, result)
     }
@@ -645,18 +613,13 @@ impl Cpu {
         let carry = (value & 1) != 0;
         let result = value >> 1;
 
-        if self.check_flag(CARRY_FLAG) {
+        if self.regs.carry {
             am.store(self, result | 0x80);
         } else {
             am.store(self, result);
         }
 
-        if carry {
-            self.set_flag(CARRY_FLAG);
-        } else {
-            self.unset_flag(CARRY_FLAG);
-        }
-
+        self.regs.carry = carry;
         self.set_nz_flags(result);
         am.store(self, result)
     }
@@ -675,23 +638,17 @@ impl Cpu {
         self.regs.a = value;
     }
 
-    // FIXME: Set carry correctly
     fn asl<AM:AddressingMode>(&mut self, am: AM) {
         let value = am.load(self);
-        if (value & 0x80) != 0 {
-            self.set_flag(CARRY_FLAG);
-        }
+        self.regs.carry = (value & 0x80) != 0;
         let result = value << 1;
         self.set_nz_flags(result);
         am.store(self, result)
     }
 
-    // FIXME: Set carry correctly
     fn lsr<AM:AddressingMode>(&mut self, am: AM) {
         let value = am.load(self);
-        if (value & 1) != 0 {
-            self.set_flag(CARRY_FLAG);
-        }
+        self.regs.carry = (value & 1) != 0;
         let result = value >> 1;
         self.set_nz_flags(result);
         am.store(self, result)
@@ -733,13 +690,30 @@ impl Cpu {
     }
 
     fn php(&mut self) {
-        let p = self.regs.p;
-        self.push_byte(p | BREAK_FLAG)
+        let mut p = 0;
+
+        if self.regs.sign      { p |= NEGATIVE_FLAG }
+        if self.regs.overflow  { p |= OVERFLOW_FLAG }
+        if self.regs.brk       { p |= BREAK_FLAG }
+        if self.regs.decimal   { p |= DECIMAL_FLAG }
+        if self.regs.interrupt { p |= INTERRUPT_FLAG }
+        if self.regs.zero      { p |= ZERO_FLAG }
+        if self.regs.carry     { p |= CARRY_FLAG }
+
+        self.push_byte(p);
     }
 
+    // FIXME: This does not work anymore
     fn plp(&mut self) {
-        // FIXME: This does not work!
-        self.regs.p = self.pop_byte()
+        let p = self.pop_byte();
+
+        self.regs.sign = (p & NEGATIVE_FLAG) != 0;
+        self.regs.overflow = (p & OVERFLOW_FLAG) != 0;
+        self.regs.brk = (p & BREAK_FLAG) != 0;
+        self.regs.decimal = (p & DECIMAL_FLAG) != 0;
+        self.regs.interrupt = (p & INTERRUPT_FLAG) != 0;
+        self.regs.zero = (p & ZERO_FLAG) != 0;
+        self.regs.carry = (p & CARRY_FLAG) != 0;
     }
 
     fn pla(&mut self) {
@@ -748,71 +722,71 @@ impl Cpu {
 
     // Flags operations
     fn clc(&mut self) {
-        self.unset_flag(CARRY_FLAG);
+        self.regs.carry = false;
     }
 
     fn sec(&mut self) {
-        self.set_flag(CARRY_FLAG);
+        self.regs.carry = true;
     }
 
     fn cli(&mut self) {
-        self.unset_flag(INTERRUPT_FLAG);
+        self.regs.interrupt = false;
     }
 
     fn sei(&mut self) {
-        self.set_flag(INTERRUPT_FLAG);
+        self.regs.interrupt = true;
     }
 
     fn clv(&mut self) {
-        self.unset_flag(OVERFLOW_FLAG);
+        self.regs.overflow = false;
     }
 
     fn cld(&mut self) {
-        self.unset_flag(DECIMAL_FLAG);
+        self.regs.decimal = false;
     }
 
     fn sed(&mut self) {
-        self.set_flag(DECIMAL_FLAG);
+        self.regs.decimal = true;
     }
 
     // Branching
     fn bpl(&mut self) {
-        let negative = self.check_flag(NEGATIVE_FLAG);
-        self.generic_branching(!negative);
+        let sign = self.regs.sign;
+        self.generic_branching(!sign)
     }
 
     fn bmi(&mut self) {
-        let plus = self.check_flag(NEGATIVE_FLAG);
-        self.generic_branching(plus);
+        let sign = self.regs.sign;
+        self.generic_branching(sign)
     }
 
     fn bvc(&mut self) {
-        let overflow = self.check_flag(OVERFLOW_FLAG);
+        let overflow = self.regs.overflow;
         self.generic_branching(!overflow);
     }
 
     fn bvs(&mut self) {
-        let overflow = self.check_flag(OVERFLOW_FLAG);
+        let overflow = self.regs.overflow;
         self.generic_branching(overflow);
     }
 
     fn bcc(&mut self) {
-        let carry = !self.check_flag(CARRY_FLAG);
-        self.generic_branching(!carry);
+        let carry = self.regs.carry;
+        self.generic_branching(!carry)
     }
 
     fn bcs(&mut self) {
-        let carry = self.check_flag(CARRY_FLAG);
-        self.generic_branching(carry);
+        let carry = self.regs.carry;
+        self.generic_branching(carry)
     }
 
     fn bne(&mut self) {
-        let zero = self.check_flag(ZERO_FLAG);
+        let zero = self.regs.zero;
         self.generic_branching(zero);
     }
 
     fn beq(&mut self) {
-        let zero = self.check_flag(ZERO_FLAG);
+        let zero = self.regs.zero;
         self.generic_branching(!zero);
     }
 
@@ -844,13 +818,7 @@ impl Cpu {
         let byte = am.load(self);
         let result = a & byte;
         let overflow = (result >> 6) & 1;
-
-        if overflow != 0 {
-            self.set_flag(OVERFLOW_FLAG)
-        } else {
-            self.unset_flag(OVERFLOW_FLAG)
-        }
-
+        self.regs.overflow = overflow != 0;
         self.set_nz_flags(result);
     }
 
@@ -858,12 +826,7 @@ impl Cpu {
         let byte = am.load(self);
         let value = reg.wrapping_sub(byte);
         self.set_nz_flags(value);
-
-        if reg >= byte {
-            self.set_flag(CARRY_FLAG);
-        } else {
-            self.unset_flag(CARRY_FLAG);
-        }
+        self.regs.carry = reg >= byte;
     }
 
     fn brk(&mut self) {
@@ -891,11 +854,11 @@ impl Cpu {
 impl std::fmt::Debug for Cpu {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         //f.write_fmt(format_args!("{:?}", &self.val[0..10]))
-        f.write_fmt(format_args!("A:{:02x} X:{:02x} Y:{:02x} P:{:02X} SP:{:02X} PC:{:04x}",
+        f.write_fmt(format_args!("A:{:02x} X:{:02x} Y:{:02x} SP:{:02X} PC:{:04x}",
             self.regs.a,
             self.regs.x,
             self.regs.y,
-            self.regs.p,
+            //self.regs.p,
             self.regs.s,
             self.regs.pc
         ))
