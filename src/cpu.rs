@@ -476,8 +476,15 @@ impl Cpu {
         }
 
         self.set_nz_flags(result as u8);
+
+        let a = self.regs.a;
+        if (a ^ value) & 0x80 == 0 && (a ^ result as u8) & 0x80 == 0x80 {
+            self.set_flag(OVERFLOW_FLAG);
+        } else {
+            self.unset_flag(OVERFLOW_FLAG);
+        }
+
         self.regs.a = (result as u8) & 0xFF;
-        // TODO: Handle overflow flag
     }
 
     fn sbc<AM: AddressingMode>(&mut self, am: AM) {
@@ -494,8 +501,15 @@ impl Cpu {
         }
 
         self.set_nz_flags(result as u8);
+
+        let a = self.regs.a;
+        if (a ^ value) & 0x80 == 0 && (a ^ result as u8) & 0x80 == 0x80 {
+            self.set_flag(OVERFLOW_FLAG);
+        } else {
+            self.unset_flag(OVERFLOW_FLAG);
+        }
+
         self.regs.a = (result as u8) & 0xFF;
-        // TODO: Handle overflow flag
     }
 
     fn inc<AM: AddressingMode>(&mut self, am: AM) {
