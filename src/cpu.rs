@@ -5,13 +5,13 @@ use memory::Memory;
 use memory::Ram;
 use ppu::Ppu;
 
-const CARRY_FLAG:     u8 = 0b00000001;
-const ZERO_FLAG:      u8 = 0b00000010;
-const INTERRUPT_FLAG: u8 = 0b00000100;
-const DECIMAL_FLAG:   u8 = 0b00001000;
-const BREAK_FLAG:     u8 = 0b00010000;
-const OVERFLOW_FLAG:  u8 = 0b01000000;
-const NEGATIVE_FLAG:  u8 = 0b10000000;
+pub const CARRY_FLAG:     u8 = 0b00000001;
+pub const ZERO_FLAG:      u8 = 0b00000010;
+pub const INTERRUPT_FLAG: u8 = 0b00000100;
+pub const DECIMAL_FLAG:   u8 = 0b00001000;
+pub const BREAK_FLAG:     u8 = 0b00010000;
+pub const OVERFLOW_FLAG:  u8 = 0b01000000;
+pub const NEGATIVE_FLAG:  u8 = 0b10000000;
 
 // The addressing mode trait was liberally inspired by https://github.com/pcwalton/sprocketnes
 trait AddressingMode {
@@ -40,13 +40,13 @@ impl AddressingMode for ImmediateAM {
 }
 
 #[derive(Debug)]
-struct Registers {
-    a: u8,
-    x: u8,
-    y: u8,
-    p: u8,
-    s: u8,
-    pc: u16
+pub struct Registers {
+    pub a: u8,
+    pub x: u8,
+    pub y: u8,
+    pub p: u8,
+    pub s: u8,
+    pub pc: u16
 }
 
 impl Registers {
@@ -63,7 +63,7 @@ impl Registers {
 }
 
 pub struct Cpu {
-    regs: Registers,
+    pub regs: Registers,
     ram: Memory
 }
 
@@ -318,21 +318,21 @@ impl Cpu {
         }
     }
 
-    fn load_byte(&mut self, address: u16) -> u8 {
+    pub fn load_byte(&mut self, address: u16) -> u8 {
         self.ram.load(address)
     }
 
-    fn load_word(&mut self, address: u16) -> u16 {
+    pub fn load_word(&mut self, address: u16) -> u16 {
         let lo = self.ram.load(address) as u16;
         let hi = self.ram.load(address + 1) as u16;
         lo | hi << 8
     }
 
-    fn store_byte(&mut self, address: u16, value: u8) {
+    pub fn store_byte(&mut self, address: u16, value: u8) {
         self.ram.store(address, value)
     }
 
-    fn store_word(&mut self, address: u16, value: u16) {
+    pub fn store_word(&mut self, address: u16, value: u16) {
         let lo = value & 0xFF;
         let hi = (value >> 8) & 0xFF;
         self.store_byte(address, lo as u8);
