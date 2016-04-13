@@ -8,8 +8,8 @@ use sen::ppu::Ppu;
 use sen::cartridge::Cartridge;
 
 fn main() {
-    let path = Path::new("/Users/xavier/code/rust/sen/roms/donkeykong.nes");
-    //let path = Path::new("/Users/xavier/code/rust/sen/roms/galaxian.nes");
+    //let path = Path::new("/Users/xavier/code/rust/sen/roms/donkeykong.nes");
+    let path = Path::new("/Users/xavier/code/rust/sen/roms/galaxian.nes");
     //let path = Path::new("/Users/xavier/code/rust/sen/roms/nestest.nes");
     //let path = Path::new("/Users/xavier/code/rust/sen/roms/instr_test-v4/rom_singles/01-basics.nes");
 
@@ -26,8 +26,8 @@ fn main() {
     loop {
         cpu.step();
         i += 1;
-        if i > 20 {
-            break;
+        if i > 200 {
+            //break;
         }
     }
 }
