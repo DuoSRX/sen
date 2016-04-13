@@ -3,7 +3,12 @@ use std;
 use cartridge::Cartridge;
 use ppu::Ppu;
 
-pub struct Memory {
+trait Memory {
+    fn load(address: u16) -> u8;
+    fn store(address: u16, value: u8) -> u8;
+}
+
+pub struct CpuMemory {
     pub ram: Ram,
     pub cartridge: Cartridge,
     pub ppu: Ppu
@@ -11,7 +16,15 @@ pub struct Memory {
     // TODO: controllers
 }
 
-impl Memory {
+impl CpuMemory {
+    pub fn new(cartridge: Cartridge, ppu: Ppu) -> CpuMemory {
+        CpuMemory {
+            cartridge: cartridge,
+            ppu: ppu,
+            ram: Ram::new()
+        }
+    }
+
     pub fn load(&mut self, address: u16) -> u8 {
         //println!("Address: {:02x} ({})", address, address);
         if address < 0x2000 {
@@ -48,7 +61,7 @@ impl Memory {
 }
 
 pub struct Ram {
-    pub val: [u8; 0xFFFF]//[u8; 0x800]
+    pub val: [u8; 0xFFFF]
 }
 
 impl std::fmt::Debug for Ram {
@@ -58,6 +71,10 @@ impl std::fmt::Debug for Ram {
 }
 
 impl Ram {
+    pub fn new() -> Ram {
+        Ram { val: [0; 0xFFFF] }
+    }
+
     pub fn load(&self, address: u16) -> u8 {
         self.val[address as usize & 0x7ff]
     }

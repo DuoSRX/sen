@@ -1,9 +1,25 @@
 use std;
 
-use cartridge::Cartridge;
-use memory::Memory;
-use memory::Ram;
-use ppu::Ppu;
+use memory::CpuMemory;
+
+/*
+ * CPU Memory Map (http://wiki.nesdev.com/w/index.php/CPU_memory_map)
+ * Address     Size  Note
+ * $0000-$07FF $0800 Internal RAM
+ * $0800-$0FFF $0800 Mirrors of $0000-$07FF
+ * $1000-$17FF $0800 Same as above
+ * $1800-$1FFF $0800 Same as above
+ * $2000-$2007 $0008 PPU registers
+ * $2008-$3FFF $1FF8 Mirrors of $2000-2007 every 8 bytes
+ * $4000-$401F $0020 APU and I/O registers
+ * $4020-$FFFF $BFE0 Cartridge (PRG ROM/RAM/Mapper)
+ *
+ * The ROM is usually stored in $8000-$FFFF
+ *
+ * $FFFA-$FFBB NMI vector
+ * $FFFC-$FFFD Reset vector
+ * $FFFE-$FFFF IRQ vector
+ */
 
 pub const CARRY_FLAG:     u8 = 0b00000001;
 pub const ZERO_FLAG:      u8 = 0b00000010;
@@ -80,34 +96,25 @@ impl Registers {
 
 pub struct Cpu {
     pub regs: Registers,
-    ram: Memory
+    pub ram: CpuMemory,
 }
 
 impl Cpu {
-    pub fn new(cartridge: Cartridge, ppu: Ppu) -> Cpu {
+    pub fn new(memory: CpuMemory) -> Cpu {
         Cpu {
             regs: Registers::new(),
-            ram: Memory {
-                ram: Ram {
-                    val: [0; 0xFFFF]
-                },
-                cartridge: cartridge,
-                ppu: ppu
-            }
-
+            ram: memory
         }
     }
 
     pub fn reset(&mut self) {
         let start = self.load_word(0xFFFC);
         println!("Starting at {:04x}", start);
-        //println!("{:04x}", self.load_word(0xE210));
         self.regs.pc = start;
     }
 
     pub fn step(&mut self) {
         let instruction = self.load_byte_and_inc_pc();
-        //println!("");
         //print!("{:04x}: {:?}", self.regs.pc - 1 - 0xc000, self);
         print!("{:04x}: {:?}", self.regs.pc - 1, self);
         //print!(" Flags: {:08b}", self.regs.p);
