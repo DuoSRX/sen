@@ -15,10 +15,11 @@ fn main() {
 
     let mut file = File::open(path).unwrap();
     let cartridge = Cartridge::load(&mut file);
+    let cartridge2 = Cartridge::load(&mut file);
 
     println!("{}", cartridge.header);
 
-    let ppu = Ppu::new();
+    let ppu = Ppu::new(cartridge2);
     let mut cpu = Cpu::new(cartridge, ppu);
     cpu.reset();
 
@@ -26,8 +27,8 @@ fn main() {
     loop {
         cpu.step();
         i += 1;
-        if i > 200 {
-            //break;
+        if i > 10 {
+            break;
         }
     }
 }

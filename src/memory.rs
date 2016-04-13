@@ -3,7 +3,6 @@ use std;
 use cartridge::Cartridge;
 use ppu::Ppu;
 
-//#[derive(Debug)]
 pub struct Memory {
     pub ram: Ram,
     pub cartridge: Cartridge,

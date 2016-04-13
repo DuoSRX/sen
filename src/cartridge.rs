@@ -1,10 +1,9 @@
-//use std::error::Error;
+use std;
 use std::fs::File;
 use std::io::prelude::*;
 use std::fmt;
 
 // Reference: http://wiki.nesdev.com/w/index.php/INES
-
 
 #[allow(dead_code)]
 pub struct NesHeader {
@@ -67,5 +66,11 @@ impl Cartridge {
 impl fmt::Display for NesHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(f, "PRG {}KB; CHR {}KB", self.prg_size as usize * 16, self.chr_size as usize * 8)
+    }
+}
+
+impl std::fmt::Debug for Cartridge {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_fmt(format_args!("{:?}", self.header.ram_size as usize * 16))
     }
 }
