@@ -47,6 +47,8 @@ impl CpuMemory {
             self.ram.store(address, value);
         } else if address < 0x4000 {
             self.ppu.store(0x2000 + address % 8, value);
+        } else if address == 0x4014 {
+            self.dma();
         } else if address < 0x6000 {
             println!("Writing {:08b} to PPU at {:04x} (Not implemented yet)", value, address);
             //panic!("Address storing at {:04x} not implemented", address);
@@ -57,6 +59,15 @@ impl CpuMemory {
             // What about the CHR?
             self.cartridge.prg[address as usize & 0x7FFF] = value;
         };
+    }
+
+    fn dma(&mut self) {
+        let a = 0x4014 << 8;
+
+        for address in a..a + 256 {
+            let value = self.load(address);
+            self.store(0x2004, value);
+        }
     }
 }
 

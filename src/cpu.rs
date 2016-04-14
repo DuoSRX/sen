@@ -115,12 +115,16 @@ impl Cpu {
 
     pub fn step(&mut self) {
         let instruction = self.load_byte_and_inc_pc();
-        //print!("{:04x}: {:?}", self.regs.pc - 1 - 0xc000, self);
-        print!("{:04x}: {:?}", self.regs.pc - 1, self);
+        print!("{:04x}: {:?}", self.regs.pc - 1 - 0xc79e, self);
+        // print!("{:04x}: {:?}", self.regs.pc - 1, self);
         //print!(" Flags: {:08b}", self.regs.p);
-        //println!(" Instruction: {:02x}", instruction);
+        // println!(" Instruction: {:02x}", instruction);
         let pc = self.regs.pc;
         println!(" Instr {:02x} {:02x} {:02x}", instruction, self.load_byte(pc), self.load_byte(pc + 1));
+        for i in 0..31 {
+            print!("{:02x} ", self.ram.ram.val[i]);
+        }
+        println!("");
         self.execute_instruction(instruction);
         // TODO: Handle cycle count
     }
@@ -577,7 +581,6 @@ impl Cpu {
     fn dey(&mut self) {
         let y = self.regs.y.wrapping_sub(1);
         self.regs.y = y;
-        println!("{}", y);
         self.set_nz_flags(y);
     }
 
@@ -789,12 +792,12 @@ impl Cpu {
 
     fn bne(&mut self) {
         let zero = self.regs.zero;
-        self.generic_branching(zero);
+        self.generic_branching(!zero);
     }
 
     fn beq(&mut self) {
         let zero = self.regs.zero;
-        self.generic_branching(!zero);
+        self.generic_branching(zero);
     }
 
     fn generic_branching(&mut self, go: bool) {

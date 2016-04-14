@@ -4,6 +4,12 @@ use cartridge::Cartridge;
 
 // http://wiki.nesdev.com/w/index.php/PPU_programmer_reference
 
+#[allow(dead_code)]
+mod ppumask {
+    pub const BACKGROUND:      u8 = 0b0001000;
+    pub const SPRITES:         u8 = 0b0010000;
+}
+
 pub struct Vram {
     pub val: [u8; 0xFFFF]//[u8; 0x800]
 }
@@ -58,7 +64,8 @@ impl Registers {
     }
 }
 
-#[derive(Debug)]
+//#[derive(Debug)]
+#[allow(dead_code)]
 pub struct Ppu {
     cartridge: Cartridge,
     regs: Registers,
@@ -68,6 +75,14 @@ pub struct Ppu {
     vram_rw_high: bool,
     scroll_x: u8,
     scroll_y: u8,
+
+    cycle: u64,
+    scanline: u16, // 0-239 is visible, 240 post, 241-260 vblank, 261 pre
+    frame: u64,
+
+    palette: [u8; 32],
+    name_table: [u8; 2048],
+    oam_data: [u8; 256]
 }
 
 impl Ppu {
@@ -79,6 +94,55 @@ impl Ppu {
             vram_rw_high: true,
             scroll_x: 0,
             scroll_y: 0,
+
+            cycle: 340,
+            scanline: 240,
+            frame: 0,
+
+            palette: [0; 32],
+            name_table: [0; 2048],
+            oam_data: [0; 256]
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.cycle = 340;
+        self.scanline = 240;
+        self.frame = 0;
+        self.regs.control = 0;
+        self.regs.mask = 0;
+        self.regs.oam_address = 0;
+    }
+
+    #[allow(dead_code)]
+    fn tick(&mut self) {
+        // trigger NMI in specific cases
+        // update cycle/scanline/frame
+    }
+
+    #[allow(dead_code)]
+    fn step(&mut self) {
+        self.tick();
+        // TODO: Implement the rest
+
+        loop {
+            let scanline = self.cycle + 114;
+
+            if self.scanline < 240 {
+                // render scanline
+            }
+
+            self.scanline += 1;
+
+            if self.scanline == 241 {
+                // vblank
+            } else if self.scanline == 261 {
+                // new frame
+                // set vblank bit in PPUSTATUS
+                self.scanline = 0;
+            }
+
+            self.cycle += 114;
         }
     }
 
@@ -102,7 +166,6 @@ impl Ppu {
             0x2005 => self.write_scroll(value),
             0x2006 => self.write_address(value),
             0x2007 => self.write_data(value),
-            // TODO: 0x4014 => write_dma(value)
             _ => panic!("PPU::store({:04x} at {:04x}) not implemented yet", value, address)
         };
     }
