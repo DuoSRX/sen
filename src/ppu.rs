@@ -11,7 +11,7 @@ mod ppumask {
 }
 
 pub struct Vram {
-    pub val: [u8; 0xFFFF]//[u8; 0x800]
+    pub val: [u8; 0x2000]//[u8; 0x800]
 }
 
 impl std::fmt::Debug for Vram {
@@ -21,14 +21,13 @@ impl std::fmt::Debug for Vram {
 }
 
 impl Vram {
-    //FIXME: This is actually completely wrong. This should handle CHR, palettes, nametables...
     pub fn load(&self, address: u16) -> u8 {
-        self.val[address as usize & 0x7ff]
+        //self.cartridge.chr[address]
+        unimplemented!()
     }
 
-    //FIXME: This is actually completely wrong. This should handle CHR, palettes, nametables...
     pub fn store(&mut self, address: u16, value: u8) {
-        self.val[address as usize & 0x7ff] = value;
+        unimplemented!()
     }
 }
 
@@ -90,7 +89,7 @@ impl Ppu {
         Ppu {
             cartridge: cartridge,
             regs: Registers::new(),
-            vram: Vram { val: [0; 0xFFFF] },
+            vram: Vram { val: [0; 0x2000] },
             vram_rw_high: true,
             scroll_x: 0,
             scroll_y: 0,
@@ -114,35 +113,53 @@ impl Ppu {
         self.regs.oam_address = 0;
     }
 
-    #[allow(dead_code)]
-    fn tick(&mut self) {
-        // trigger NMI in specific cases
-        // update cycle/scanline/frame
+    // #[allow(dead_code)]
+    // fn tick(&mut self) {
+    //     // trigger NMI in specific cases
+    //     // update cycle/scanline/frame
+    // }
+    //
+    // #[allow(dead_code)]
+    // fn step(&mut self) {
+    //     self.tick();
+    //     // TODO: Implement the rest
+    //
+    //     let rendering = self.regs.mas
+    //
+    //     loop {
+    //         let scanline = self.cycle + 114;
+    //
+    //         if self.scanline < 240 {
+    //             // render scanline
+    //         }
+    //
+    //         self.scanline += 1;
+    //
+    //         if self.scanline == 241 {
+    //             // vblank
+    //         } else if self.scanline == 261 {
+    //             // new frame
+    //             // set vblank bit in PPUSTATUS
+    //             self.scanline = 0;
+    //         }
+    //
+    //         self.cycle += 114;
+    //     }
+    // }
+
+    pub fn vram_load(&mut self, address: u16) -> u8 {
+        if address < 0x2000 {
+            self.cartridge.chr[address as usize]
+        } else {
+            panic!("Reading VRam at {:04x} is not implemented yet!");
+        }
     }
 
-    #[allow(dead_code)]
-    fn step(&mut self) {
-        self.tick();
-        // TODO: Implement the rest
-
-        loop {
-            let scanline = self.cycle + 114;
-
-            if self.scanline < 240 {
-                // render scanline
-            }
-
-            self.scanline += 1;
-
-            if self.scanline == 241 {
-                // vblank
-            } else if self.scanline == 261 {
-                // new frame
-                // set vblank bit in PPUSTATUS
-                self.scanline = 0;
-            }
-
-            self.cycle += 114;
+    pub fn vram_store(&mut self, address: u16, value: u8) {
+        if address < 0x2000 {
+            self.cartridge.chr[address as usize] = value;
+        } else {
+            panic!("Storing VRam at {:04x} is not implemented yet!");
         }
     }
 
@@ -188,7 +205,8 @@ impl Ppu {
     // $2007 Read from PPUDATA
     fn read_data(&mut self) -> u8 {
         // TODO: Handle buffered reads
-        let value = self.vram.load(self.regs.address);
+        let address = self.regs.address;
+        let value = self.vram_load(address);
         self.regs.address += self.address_increment();
         value
     }
@@ -196,19 +214,20 @@ impl Ppu {
     // $2007 Write to PPUDATA
     fn write_data(&mut self, value: u8) {
         let address = self.regs.address as u16;
-        self.vram.store(address, value);
+        self.vram_store(address, value);
         self.regs.address += self.address_increment();
     }
 
     // $2004 Read from OAMDATA
     fn read_oam_data(&mut self) -> u8 {
-        self.vram.load(self.regs.oam_address as u16)
+        let address = self.regs.oam_address as u16;
+        self.vram_load(address)
     }
 
     // $2004 Write to OAMDATA
     fn write_oam_data(&mut self, value: u8) {
         let address = self.regs.oam_address as u16;
-        self.vram.store(address, value);
+        self.vram_store(address, value);
         self.regs.oam_address += 1;
     }
 

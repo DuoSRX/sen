@@ -864,11 +864,11 @@ impl Cpu {
 impl std::fmt::Debug for Cpu {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         //f.write_fmt(format_args!("{:?}", &self.val[0..10]))
-        f.write_fmt(format_args!("A:{:02x} X:{:02x} Y:{:02x} SP:{:02X} PC:{:04x}",
+        f.write_fmt(format_args!("A:{:02x} X:{:02x} Y:{:02x} Carry: {} SP:{:02X} PC:{:04x}",
             self.regs.a,
             self.regs.x,
             self.regs.y,
-            //self.regs.p,
+            self.regs.carry,
             self.regs.s,
             self.regs.pc
         ))

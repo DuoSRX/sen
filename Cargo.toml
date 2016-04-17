@@ -7,3 +7,4 @@ authors = ["Xavier Perez <duosrx@gmail.com>"]
 name = "sen"
 
 [dependencies]
+sdl2 = "0.18.0"
