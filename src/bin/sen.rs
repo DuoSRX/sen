@@ -16,8 +16,8 @@ use sen::cartridge::Cartridge;
 use sen::memory::CpuMemory;
 
 fn main() {
-    // let path = Path::new("/Users/xavier/code/rust/sen/roms/donkeykong.nes");
-    let path = Path::new("/Users/xavier/code/rust/sen/roms/galaxian.nes");
+    let path = Path::new("/Users/xavier/code/rust/sen/roms/donkeykong.nes");
+    // let path = Path::new("/Users/xavier/code/rust/sen/roms/galaxian.nes");
     // let path = Path::new("/Users/xavier/code/rust/sen/roms/nestest.nes");
     // let path = Path::new("/Users/xavier/code/rust/sen/roms/instr_test-v4/rom_singles/01-basics.nes");
 
@@ -55,7 +55,7 @@ fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
-    let window = video_subsystem.window("wat", 800, 600)
+    let window = video_subsystem.window("wat", 1024, 768)
         .position_centered()
         .opengl()
         .build()
@@ -66,18 +66,18 @@ fn main() {
     renderer.set_draw_color(Color::RGB(255,255, 255));
     renderer.clear();
 
-    const PIXEL_SIZE: u32 = 8;
-    const RECT_SIZE: u32 = PIXEL_SIZE * 8;
-    const RECT_GAP: u32 = 8;
+    const PIXEL_SIZE: u32 = 4;
+    const RECT_SIZE: u32 = 32;
+    const GRID_SIZE: i32 = 24;
 
-    for n in 0..16 {
-        let x_offset: i32 = (n -16) * RECT_SIZE as i32;
-        let y_offset: i32 = 0; //(n as i32 % 8) * 64;
+    for n in 128..256 {
+        let x_offset: i32 = ((n % GRID_SIZE) * RECT_SIZE as i32) + PIXEL_SIZE as i32;//n * RECT_SIZE as i32 + 4;
+        let y_offset: i32 = (n / GRID_SIZE * RECT_SIZE as i32) + PIXEL_SIZE as i32;
 
         for y in 0..8 {
             //println!("{:08b} ", ppu.vram_load(i));
-            let plane0 = ppu.vram_load(y as u16 + n as u16);
-            let plane1 = ppu.vram_load(y as u16 + n as u16 + 8);
+            let plane0 = ppu.vram_load(y as u16 + (n as u16 * 16));
+            let plane1 = ppu.vram_load(y as u16 + (n as u16 * 16) + 8);
 
             for x in 0..8 {
                 let bit0 = (plane0 >> ((7 - ((x % 8) as u8)) as usize)) & 1;
@@ -85,15 +85,15 @@ fn main() {
                 let result = (bit1 << 1) | bit0;
 
                 match result {
-                    1 => renderer.set_draw_color(Color::RGB(255,0,0)),
-                    2 => renderer.set_draw_color(Color::RGB(0,255,0)),
-                    3 => renderer.set_draw_color(Color::RGB(0,0,255)),
+                    1 => renderer.set_draw_color(Color::RGB(215,215,215)),
+                    2 => renderer.set_draw_color(Color::RGB(190,190,190)),
+                    3 => renderer.set_draw_color(Color::RGB(125,125,125)),
                     _ => (),
                 }
 
                 if result > 0 {
-                    let x_pos = x * 8 + x_offset;
-                    let y_pos = y * 8 + y_offset;
+                    let x_pos = x * 4 + x_offset;
+                    let y_pos = y * 4 + y_offset;
                     let rect = Rect::new(x_pos, y_pos, PIXEL_SIZE, PIXEL_SIZE);
                     renderer.fill_rect(rect).unwrap();
                     // renderer.draw_point(Point::new(j as i32, i as i32)).unwrap();
@@ -104,7 +104,7 @@ fn main() {
             println!("");
         }
         println!("");
-        let rect = Rect::new(x_offset as i32, 0, 64, 64);
+        let rect = Rect::new(x_offset, y_offset, RECT_SIZE, RECT_SIZE);
         renderer.set_draw_color(Color::RGB(0,0,0));
         renderer.draw_rect(rect).unwrap();
 
