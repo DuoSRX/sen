@@ -121,7 +121,7 @@ impl Cpu {
         // print!("{:04x}: {:?}", self.regs.pc - 1, self);
         //print!(" Flags: {:08b}", self.regs.p);
         // println!(" Instruction: {:02x}", instruction);
-        let pc = self.regs.pc;
+        // let pc = self.regs.pc;
         // println!(" Instr {:02x} {:02x} {:02x}", instruction, self.load_byte(pc), self.load_byte(pc + 1));
         // for i in 0..31 {
         //     print!("{:02x} ", self.ram.ram.val[i]);
@@ -861,6 +861,13 @@ impl Cpu {
         let pc = self.pop_word();
         //println!("RTS {:04X}", pc);
         self.regs.pc = pc + 1;
+    }
+
+    pub fn nmi(&mut self) {
+        let pc = self.regs.pc;
+        self.push_word(pc);
+        self.php();
+        self.regs.pc = self.load_word(0xFFFA);
     }
 }
 

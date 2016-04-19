@@ -67,6 +67,8 @@ fn main() {
         cpu.step();
         cpu.ram.ppu.step(cpu.cycle);
 
+        if cpu.ram.ppu.nmi { cpu.nmi(); }
+
         if cpu.ram.ppu.new_frame {
             texture.update(None, &cpu.ram.ppu.frame_content, 256 * 3).unwrap();
             renderer.clear();

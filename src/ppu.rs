@@ -77,6 +77,8 @@ pub struct Ppu {
     vram_rw_high: bool,
     scroll_x: u8,
     scroll_y: u8,
+    next_scroll_x: bool,
+    pub nmi: bool,
 
     cycle: u64,
     scanline: u16, // 0-239 is visible, 240 post, 241-260 vblank, 261 pre
@@ -98,6 +100,8 @@ impl Ppu {
             vram_rw_high: true,
             scroll_x: 0,
             scroll_y: 0,
+            next_scroll_x: true,
+            nmi: false,
 
             cycle: 340,
             scanline: 240,
@@ -208,7 +212,7 @@ impl Ppu {
     fn write_oam_data(&mut self, value: u8) {
         let address = self.regs.oam_address as u16;
         self.vram_store(address, value);
-        self.regs.oam_address += 1;
+        self.regs.oam_address.wrapping_add(1);
     }
 
     // $2006 Write to PPUADDR
@@ -224,12 +228,12 @@ impl Ppu {
 
     // $2005 Write to PPUSCROLL
     fn write_scroll(&mut self, value: u8) {
-        if self.vram_rw_high {
+        if self.next_scroll_x {
             self.scroll_x = value;
-            self.vram_rw_high = false;
+            self.next_scroll_x = false;
         } else {
             self.scroll_y = value;
-            self.vram_rw_high = true;
+            self.next_scroll_x = true;
         }
     }
 
@@ -261,6 +265,8 @@ impl Ppu {
     }
 
     pub fn step(&mut self, cpu_cycle: u64) {
+        self.nmi = false;
+
         loop {
             let next_scanline = 124 + self.cycle;
             if next_scanline > cpu_cycle {
@@ -273,6 +279,9 @@ impl Ppu {
 
             if self.scanline == 241 { // VBlank
                 self.regs.status |= 0x80;
+                if (self.regs.control | 0x80) != 0 {
+                    self.nmi = true;
+                }
             } else if self.scanline == 261 {
                 self.new_frame = true;
                 self.scanline = 0;
