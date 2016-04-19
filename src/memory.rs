@@ -32,7 +32,7 @@ impl CpuMemory {
         } else if address < 0x4000 {
             return self.ppu.load(0x2000 + address % 8);
         } else if address < 0x6000 {
-            println!("Reading from PPU at {:04x}", address);
+            //println!("Reading from PPU at {:04x}", address);
             return 0;
             //panic!("Address loading at {:04x} not implemented", address);
         } else {
@@ -50,14 +50,14 @@ impl CpuMemory {
         } else if address == 0x4014 {
             self.dma();
         } else if address < 0x6000 {
-            println!("Writing {:08b} to PPU at {:04x} (Not implemented yet)", value, address);
+            //println!("Writing {:08b} to PPU at {:04x} (Not implemented yet)", value, address);
             //panic!("Address storing at {:04x} not implemented", address);
         } else {
             // TODO: Move to a mapper module?
             // FIXME: Yeah. This should go to a mapper. This does not work correctly;
             // Can you even store in the PRG anyway...?
             // What about the CHR?
-            self.cartridge.prg[address as usize & 0x7FFF] = value;
+            self.cartridge.prg[address as usize & 0x3FFF] = value;
         };
     }
 

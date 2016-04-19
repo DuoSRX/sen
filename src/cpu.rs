@@ -16,7 +16,7 @@ use memory::CpuMemory;
  *
  * The ROM is usually stored in $8000-$FFFF
  *
- * $FFFA-$FFBB NMI vector
+ * $FFFA-$FFFB NMI vector
  * $FFFC-$FFFD Reset vector
  * $FFFE-$FFFF IRQ vector
  */
@@ -28,6 +28,26 @@ pub const DECIMAL_FLAG:   u8 = 0b00001000;
 pub const BREAK_FLAG:     u8 = 0b00010000;
 pub const OVERFLOW_FLAG:  u8 = 0b01000000;
 pub const NEGATIVE_FLAG:  u8 = 0b10000000;
+
+// Lifted from FCEUX
+const CYCLES_PER_INSTRUCTION: [u8; 256] = [
+    7,6,2,8,3,3,5,5,3,2,2,2,4,4,6,6,
+    2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
+    6,6,2,8,3,3,5,5,4,2,2,2,4,4,6,6,
+    2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
+    6,6,2,8,3,3,5,5,3,2,2,2,3,4,6,6,
+    2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
+    6,6,2,8,3,3,5,5,4,2,2,2,5,4,6,6,
+    2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
+    2,6,2,6,3,3,3,3,2,2,2,2,4,4,4,4,
+    2,6,2,6,4,4,4,4,2,5,2,5,5,5,5,5,
+    2,6,2,6,3,3,3,3,2,2,2,2,4,4,4,4,
+    2,5,2,5,4,4,4,4,2,4,2,4,4,4,4,4,
+    2,6,2,8,3,3,5,5,2,2,2,2,4,4,6,6,
+    2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
+    2,6,3,8,3,3,5,5,2,2,2,2,4,4,6,6,
+    2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
+];
 
 // The addressing mode trait was liberally inspired by https://github.com/pcwalton/sprocketnes
 trait AddressingMode {
@@ -129,7 +149,7 @@ impl Cpu {
         // println!("");
         self.execute_instruction(instruction);
         // TODO: Handle actual cycle count
-        self.cycle += 3;
+        self.cycle += CYCLES_PER_INSTRUCTION[instruction as usize] as u64;
     }
 
     fn execute_instruction(&mut self, instruction: u8) {
@@ -461,6 +481,30 @@ impl Cpu {
         MemoryAM { address: address }
     }
 
+    fn get_flags(&self) -> u8 {
+        let mut p = 0;
+
+        if self.regs.sign      { p |= NEGATIVE_FLAG }
+        if self.regs.overflow  { p |= OVERFLOW_FLAG }
+        if self.regs.brk       { p |= BREAK_FLAG }
+        if self.regs.decimal   { p |= DECIMAL_FLAG }
+        if self.regs.interrupt { p |= INTERRUPT_FLAG }
+        if self.regs.zero      { p |= ZERO_FLAG }
+        if self.regs.carry     { p |= CARRY_FLAG }
+
+        return p
+    }
+
+    fn set_flags(&mut self, flags: u8) {
+        self.regs.sign = (flags & NEGATIVE_FLAG) != 0;
+        self.regs.overflow = (flags & OVERFLOW_FLAG) != 0;
+        self.regs.brk = (flags & BREAK_FLAG) != 0;
+        self.regs.decimal = (flags & DECIMAL_FLAG) != 0;
+        self.regs.interrupt = (flags & INTERRUPT_FLAG) != 0;
+        self.regs.zero = (flags & ZERO_FLAG) != 0;
+        self.regs.carry = (flags & CARRY_FLAG) != 0;
+    }
+
     // Instructions
     fn nop(&mut self, to_skip: u8) {
         self.regs.pc += to_skip as u16;
@@ -703,30 +747,13 @@ impl Cpu {
     }
 
     fn php(&mut self) {
-        let mut p = 0;
-
-        if self.regs.sign      { p |= NEGATIVE_FLAG }
-        if self.regs.overflow  { p |= OVERFLOW_FLAG }
-        if self.regs.brk       { p |= BREAK_FLAG }
-        if self.regs.decimal   { p |= DECIMAL_FLAG }
-        if self.regs.interrupt { p |= INTERRUPT_FLAG }
-        if self.regs.zero      { p |= ZERO_FLAG }
-        if self.regs.carry     { p |= CARRY_FLAG }
-
-        self.push_byte(p);
+        let flags = self.get_flags() | BREAK_FLAG;
+        self.push_byte(flags);
     }
 
-    // FIXME: This does not work anymore
     fn plp(&mut self) {
         let p = self.pop_byte();
-
-        self.regs.sign = (p & NEGATIVE_FLAG) != 0;
-        self.regs.overflow = (p & OVERFLOW_FLAG) != 0;
-        self.regs.brk = (p & BREAK_FLAG) != 0;
-        self.regs.decimal = (p & DECIMAL_FLAG) != 0;
-        self.regs.interrupt = (p & INTERRUPT_FLAG) != 0;
-        self.regs.zero = (p & ZERO_FLAG) != 0;
-        self.regs.carry = (p & CARRY_FLAG) != 0;
+        self.set_flags(p);
     }
 
     fn pla(&mut self) {
@@ -845,21 +872,21 @@ impl Cpu {
     fn brk(&mut self) {
         let pc = self.regs.pc;
         self.push_word(pc + 1);
+        let flags = self.get_flags();
+        self.push_byte(flags);
         self.sei();
         self.regs.pc = self.load_word(0xFFFE);
     }
 
     fn rti(&mut self) {
         let flags = self.pop_byte();
+        self.set_flags(flags);
         let pc = self.pop_word();
-        // FIXME: Is that even correct? I feel like there should be some bit fiddling happening
-        self.regs.s = flags;
         self.regs.pc = pc;
     }
 
     fn rts(&mut self) {
         let pc = self.pop_word();
-        //println!("RTS {:04X}", pc);
         self.regs.pc = pc + 1;
     }
 
@@ -873,13 +900,12 @@ impl Cpu {
 
 impl std::fmt::Debug for Cpu {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        //f.write_fmt(format_args!("{:?}", &self.val[0..10]))
         f.write_fmt(format_args!("A:{:02x} X:{:02x} Y:{:02x} Zero: {} SP:{:02X} PC:{:04x}",
             self.regs.a,
             self.regs.x,
             self.regs.y,
             self.regs.zero,
-            self.regs.s,
+            self.get_flags(),
             self.regs.pc
         ))
     }

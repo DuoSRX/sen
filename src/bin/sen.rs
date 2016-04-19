@@ -50,10 +50,22 @@ fn main() {
     renderer.set_draw_color(Color::RGB(255,255,255));
 
     let mut event_pump = sdl_context.event_pump().unwrap();
-
     let mut texture = renderer.create_texture_streaming(PixelFormatEnum::BGR24, 256, 240).unwrap();
 
     'running: loop {
+        cpu.step();
+        cpu.ram.ppu.step(cpu.cycle);
+
+        if cpu.ram.ppu.nmi { cpu.nmi(); }
+
+        if cpu.ram.ppu.new_frame {
+            // println!("Rendered new frame (CPU: {} PPU: {})", cpu.cycle, cpu.ram.ppu.cycle);
+            texture.update(None, &cpu.ram.ppu.frame_content, 256 * 3).unwrap();
+            renderer.clear();
+            renderer.copy(&texture, None, None); //Some(Rect::new(0, 0, 256, 240)));
+            renderer.present();
+        }
+
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
@@ -61,24 +73,6 @@ fn main() {
                 },
                 _ => {}
             }
-        }
-
-        let mut i = 0;
-        cpu.step();
-        cpu.ram.ppu.step(cpu.cycle);
-
-        if cpu.ram.ppu.nmi { cpu.nmi(); }
-
-        if cpu.ram.ppu.new_frame {
-            texture.update(None, &cpu.ram.ppu.frame_content, 256 * 3).unwrap();
-            renderer.clear();
-            renderer.copy(&texture, None, Some(Rect::new(0, 0, 256, 240)));
-            renderer.present();
-        }
-
-        i += 1;
-        if i > 1000000 {
-            break;
         }
     }
 }

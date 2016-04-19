@@ -5,7 +5,7 @@ use cartridge::Cartridge;
 // http://wiki.nesdev.com/w/index.php/PPU_programmer_reference
 
 mod ppuctrl {
-    pub const BG_PATTERN_TABLE_ADDRESS: u8 = 0b00010000;
+    pub const BG_PATTERN_TABLE_ADDRESS: u8 = 0x10;
 }
 
 #[allow(dead_code)]
@@ -80,7 +80,7 @@ pub struct Ppu {
     next_scroll_x: bool,
     pub nmi: bool,
 
-    cycle: u64,
+    pub cycle: u64,
     scanline: u16, // 0-239 is visible, 240 post, 241-260 vblank, 261 pre
     frame: u64,
     pub new_frame: bool,
@@ -128,7 +128,7 @@ impl Ppu {
         if address < 0x2000 {
             self.cartridge.chr[address as usize]
         } else if address < 0x3F00 {
-            self.name_tables[address as usize & 0x07FF]
+            self.name_tables[address as usize & 0x0FFF]
         } else if address < 0x4000 {
             self.palettes[address as usize & 0x1F]
         } else {
@@ -140,7 +140,7 @@ impl Ppu {
         if address < 0x2000 {
             self.cartridge.chr[address as usize] = value;
         } else if address < 0x3F00 {
-            self.name_tables[address as usize & 0x07FF] = value;
+            self.name_tables[address as usize & 0x0FFF] = value;
         } else if address < 0x4000 {
             self.palettes[address as usize & 0x1F] = value;
         } else {
@@ -172,7 +172,7 @@ impl Ppu {
     }
 
     fn address_increment(&mut self) -> u16 {
-        if self.regs.status & 0x04 == 0 {
+        if self.regs.control & 0x04 == 0 {
             1
         } else {
             32
@@ -205,13 +205,13 @@ impl Ppu {
     // $2004 Read from OAMDATA
     fn read_oam_data(&mut self) -> u8 {
         let address = self.regs.oam_address as u16;
-        self.vram_load(address)
+        self.oam_data[address as usize]
     }
 
     // $2004 Write to OAMDATA
     fn write_oam_data(&mut self, value: u8) {
         let address = self.regs.oam_address as u16;
-        self.vram_store(address, value);
+        self.oam_data[address as usize] = value;
         self.regs.oam_address.wrapping_add(1);
     }
 
@@ -248,27 +248,32 @@ impl Ppu {
         let offset = 8192 + 32 * (scanline / 8);
 
         for x in 0..256 {
-            let current_tile = self.vram_load(offset + (x / 8));
-            let mut offset2 = (current_tile << 4) as u16 + (self.scanline as u16) % 8;
-            offset2 += if self.regs.mask & ppuctrl::BG_PATTERN_TABLE_ADDRESS == 0 { 0 } else { 0x1000 };
-            let p0 = self.vram_load(offset2);
-            let p1 = self.vram_load(offset2 + 8);
-            let bit0 = (p0 >> (7 - ((x % 8) as u8))) & 1;
-            let bit1 = (p1 >> (7 - ((x % 8) as u8))) & 1;
-            let result = (bit1 << 1) | bit0;
+            if self.regs.mask & 0x08 != 0 {
+                let current_tile = self.vram_load(offset + (x / 8));
+                let mut offset2 = (current_tile << 4) as u16 + (scanline as u16) % 8;
+                offset2 += if self.regs.control & ppuctrl::BG_PATTERN_TABLE_ADDRESS == 0 { 0 } else { 0x1000 };
+                let p0 = self.vram_load(offset2);
+                let p1 = self.vram_load(offset2 + 8);
+                let bit0 = (p0 >> (7 - ((x % 8) as u8))) & 1;
+                let bit1 = (p1 >> (7 - ((x % 8) as u8))) & 1;
+                let result = (bit1 << 1) | bit0;
 
-            // FIXME: handle palettes and RGB
-            let c = (result << 6) as u32;
-
-            self.set_pixel(x as u32, scanline as u32, (c << 8) | (c << 16) | (c << 24));
+                // FIXME: handle palettes and RGB
+                let c = (result << 6) as u32;
+                self.set_pixel(x as u32, scanline as u32, (c << 8) | (c << 16) | (c << 24));
+            } else {
+                let c = 0;
+                self.set_pixel(x as u32, scanline as u32, (c << 8) | (c << 16) | (c << 24));
+            }
         }
     }
 
     pub fn step(&mut self, cpu_cycle: u64) {
         self.nmi = false;
+        // self.frame_content = [0; 256 * 240 * 3];
 
         loop {
-            let next_scanline = 124 + self.cycle;
+            let next_scanline = 114 + self.cycle;
             if next_scanline > cpu_cycle {
                 break;
             }
@@ -284,11 +289,12 @@ impl Ppu {
                 }
             } else if self.scanline == 261 {
                 self.new_frame = true;
+                self.frame += 1;
                 self.scanline = 0;
                 self.regs.status &= !0x80;
             }
 
-            self.cycle += 124;
+            self.cycle += 114;
         }
     }
 }
