@@ -4,14 +4,18 @@ use cartridge::Cartridge;
 
 // http://wiki.nesdev.com/w/index.php/PPU_programmer_reference
 
+mod ppuctrl {
+    pub const BG_PATTERN_TABLE_ADDRESS: u8 = 0b00010000;
+}
+
 #[allow(dead_code)]
 mod ppumask {
-    pub const BACKGROUND:      u8 = 0b0001000;
-    pub const SPRITES:         u8 = 0b0010000;
+    pub const BACKGROUND:      u8 = 0b00001000;
+    pub const SPRITES:         u8 = 0b00010000;
 }
 
 pub struct Vram {
-    pub val: [u8; 0x2000]//[u8; 0x800]
+    pub val: [u8; 0x800],
 }
 
 impl std::fmt::Debug for Vram {
@@ -21,16 +25,15 @@ impl std::fmt::Debug for Vram {
 }
 
 impl Vram {
-    pub fn load(&self, address: u16) -> u8 {
+    pub fn load(&self, _address: u16) -> u8 {
         //self.cartridge.chr[address]
         unimplemented!()
     }
 
-    pub fn store(&mut self, address: u16, value: u8) {
+    pub fn store(&mut self, _address: u16, _value: u8) {
         unimplemented!()
     }
 }
-
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -78,9 +81,11 @@ pub struct Ppu {
     cycle: u64,
     scanline: u16, // 0-239 is visible, 240 post, 241-260 vblank, 261 pre
     frame: u64,
+    pub new_frame: bool,
+    pub frame_content: [u8; 256 * 240 * 3],
 
-    palette: [u8; 32],
-    name_table: [u8; 2048],
+    palettes: [u8; 32],
+    name_tables: [u8; 2048],
     oam_data: [u8; 256]
 }
 
@@ -89,17 +94,19 @@ impl Ppu {
         Ppu {
             cartridge: cartridge,
             regs: Registers::new(),
-            vram: Vram { val: [0; 0x2000] },
+            vram: Vram { val: [0; 0x800] },
             vram_rw_high: true,
             scroll_x: 0,
             scroll_y: 0,
 
             cycle: 340,
             scanline: 240,
+            new_frame: false,
             frame: 0,
+            frame_content: [0; 256 * 240 * 3],
 
-            palette: [0; 32],
-            name_table: [0; 2048],
+            palettes: [0; 32],
+            name_tables: [0; 2048],
             oam_data: [0; 256]
         }
     }
@@ -113,58 +120,31 @@ impl Ppu {
         self.regs.oam_address = 0;
     }
 
-    // #[allow(dead_code)]
-    // fn tick(&mut self) {
-    //     // trigger NMI in specific cases
-    //     // update cycle/scanline/frame
-    // }
-    //
-    // #[allow(dead_code)]
-    // fn step(&mut self) {
-    //     self.tick();
-    //     // TODO: Implement the rest
-    //
-    //     let rendering = self.regs.mas
-    //
-    //     loop {
-    //         let scanline = self.cycle + 114;
-    //
-    //         if self.scanline < 240 {
-    //             // render scanline
-    //         }
-    //
-    //         self.scanline += 1;
-    //
-    //         if self.scanline == 241 {
-    //             // vblank
-    //         } else if self.scanline == 261 {
-    //             // new frame
-    //             // set vblank bit in PPUSTATUS
-    //             self.scanline = 0;
-    //         }
-    //
-    //         self.cycle += 114;
-    //     }
-    // }
-
     pub fn vram_load(&mut self, address: u16) -> u8 {
         if address < 0x2000 {
             self.cartridge.chr[address as usize]
+        } else if address < 0x3F00 {
+            self.name_tables[address as usize & 0x07FF]
+        } else if address < 0x4000 {
+            self.palettes[address as usize & 0x1F]
         } else {
-            panic!("Reading VRam at {:04x} is not implemented yet!");
+            panic!("Reading VRam at {:04x} is not valid!");
         }
     }
 
     pub fn vram_store(&mut self, address: u16, value: u8) {
         if address < 0x2000 {
             self.cartridge.chr[address as usize] = value;
+        } else if address < 0x3F00 {
+            self.name_tables[address as usize & 0x07FF] = value;
+        } else if address < 0x4000 {
+            self.palettes[address as usize & 0x1F] = value;
         } else {
-            panic!("Storing VRam at {:04x} is not implemented yet!");
+            panic!("Storing VRam at {:04x} is not valid!");
         }
     }
 
     pub fn load(&mut self, address: u16) -> u8 {
-        //panic!("PPU::load({:04x}) not implemented yet", address);
         match address {
             0x2002 => self.read_status(),
             0x2004 => self.read_oam_data(),
@@ -250,6 +230,56 @@ impl Ppu {
         } else {
             self.scroll_y = value;
             self.vram_rw_high = true;
+        }
+    }
+
+    fn set_pixel(&mut self, x: u32, y: u32, color: u32) {
+        self.frame_content[((y * 256 + x) * 3 + 0) as usize] = (color >> 24) as u8;
+        self.frame_content[((y * 256 + x) * 3 + 1) as usize] = (color >> 16) as u8;
+        self.frame_content[((y * 256 + x) * 3 + 2) as usize] = (color >> 8) as u8;
+    }
+
+    fn make_scanline(&mut self) {
+        let scanline = self.scanline;
+        let offset = 8192 + 32 * (scanline / 8);
+
+        for x in 0..256 {
+            let current_tile = self.vram_load(offset + (x / 8));
+            let mut offset2 = (current_tile << 4) as u16 + (self.scanline as u16) % 8;
+            offset2 += if self.regs.mask & ppuctrl::BG_PATTERN_TABLE_ADDRESS == 0 { 0 } else { 0x1000 };
+            let p0 = self.vram_load(offset2);
+            let p1 = self.vram_load(offset2 + 8);
+            let bit0 = (p0 >> (7 - ((x % 8) as u8))) & 1;
+            let bit1 = (p1 >> (7 - ((x % 8) as u8))) & 1;
+            let result = (bit1 << 1) | bit0;
+
+            // FIXME: handle palettes and RGB
+            let c = (result << 6) as u32;
+
+            self.set_pixel(x as u32, scanline as u32, (c << 8) | (c << 16) | (c << 24));
+        }
+    }
+
+    pub fn step(&mut self, cpu_cycle: u64) {
+        loop {
+            let next_scanline = 124 + self.cycle;
+            if next_scanline > cpu_cycle {
+                break;
+            }
+            if self.scanline < 240 {
+                self.make_scanline();
+            }
+            self.scanline += 1;
+
+            if self.scanline == 241 { // VBlank
+                self.regs.status |= 0x80;
+            } else if self.scanline == 261 {
+                self.new_frame = true;
+                self.scanline = 0;
+                self.regs.status &= !0x80;
+            }
+
+            self.cycle += 124;
         }
     }
 }

@@ -97,13 +97,15 @@ impl Registers {
 pub struct Cpu {
     pub regs: Registers,
     pub ram: CpuMemory,
+    pub cycle: u64,
 }
 
 impl Cpu {
     pub fn new(memory: CpuMemory) -> Cpu {
         Cpu {
             regs: Registers::new(),
-            ram: memory
+            ram: memory,
+            cycle: 0
         }
     }
 
@@ -115,18 +117,19 @@ impl Cpu {
 
     pub fn step(&mut self) {
         let instruction = self.load_byte_and_inc_pc();
-        print!("{:04x}: {:?}", self.regs.pc - 1 - 0xc79e, self);
+        // print!("{:04x}: {:?}", self.regs.pc - 1 - 0xc79e, self);
         // print!("{:04x}: {:?}", self.regs.pc - 1, self);
         //print!(" Flags: {:08b}", self.regs.p);
         // println!(" Instruction: {:02x}", instruction);
         let pc = self.regs.pc;
-        println!(" Instr {:02x} {:02x} {:02x}", instruction, self.load_byte(pc), self.load_byte(pc + 1));
-        for i in 0..31 {
-            print!("{:02x} ", self.ram.ram.val[i]);
-        }
-        println!("");
+        // println!(" Instr {:02x} {:02x} {:02x}", instruction, self.load_byte(pc), self.load_byte(pc + 1));
+        // for i in 0..31 {
+        //     print!("{:02x} ", self.ram.ram.val[i]);
+        // }
+        // println!("");
         self.execute_instruction(instruction);
-        // TODO: Handle cycle count
+        // TODO: Handle actual cycle count
+        self.cycle += 3;
     }
 
     fn execute_instruction(&mut self, instruction: u8) {
@@ -864,11 +867,11 @@ impl Cpu {
 impl std::fmt::Debug for Cpu {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         //f.write_fmt(format_args!("{:?}", &self.val[0..10]))
-        f.write_fmt(format_args!("A:{:02x} X:{:02x} Y:{:02x} Carry: {} SP:{:02X} PC:{:04x}",
+        f.write_fmt(format_args!("A:{:02x} X:{:02x} Y:{:02x} Zero: {} SP:{:02X} PC:{:04x}",
             self.regs.a,
             self.regs.x,
             self.regs.y,
-            self.regs.carry,
+            self.regs.zero,
             self.regs.s,
             self.regs.pc
         ))

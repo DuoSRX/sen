@@ -11,7 +11,7 @@ trait Memory {
 pub struct CpuMemory {
     pub ram: Ram,
     pub cartridge: Cartridge,
-    pub ppu: Ppu
+    pub ppu: Ppu,
     // TODO: apu
     // TODO: controllers
 }
