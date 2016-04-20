@@ -1,6 +1,6 @@
 pub struct Controller {
     pub buttons: [bool; 8],
-    index: usize,
+    index: u8,
     strobe: u8
 }
 
@@ -17,7 +17,8 @@ impl Controller {
         if address != 0x4016 { return 0 };
         let mut value = 0;
 
-        if self.index < 8 && self.buttons[self.index] {
+        if self.index < 8 && self.buttons[self.index as usize] {
+            println!("Controller {} got {}", self.index, self.buttons[self.index as usize]);
             value = 1;
         }
 

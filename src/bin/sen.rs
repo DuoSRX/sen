@@ -69,8 +69,23 @@ fn main() {
                 Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     break 'running
                 },
+                Event::KeyDown { keycode: Some(Keycode::Z), .. } => {
+                    cpu.ram.controller.buttons[0] = true;
+                }
+                Event::KeyDown { keycode: Some(Keycode::X), .. } => {
+                    cpu.ram.controller.buttons[1] = true;
+                }
                 Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
                     cpu.ram.controller.buttons[3] = true;
+                }
+                Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
+                    cpu.ram.controller.buttons[4] = true;
+                }
+                Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
+                    cpu.ram.controller.buttons[5] = true;
+                }
+                Event::KeyUp { keycode: Some(_key), .. } => {
+                    cpu.ram.controller.buttons = [false; 8];
                 }
                 _ => {}
             }

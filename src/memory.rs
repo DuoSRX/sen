@@ -33,8 +33,11 @@ impl CpuMemory {
             return self.ram.load(address);
         } else if address < 0x4000 {
             return self.ppu.load(0x2000 + address % 8);
-        } else if address < 0x4018 {
+        } else if address == 0x4016 {
             return self.controller.load(address);
+        } else if address < 0x4018 {
+            // TODO: APU
+            return 0;
         } else if address < 0x6000 {
             println!("Reading from memory at {:04x} - Not implemented yet", address);
             return 0;
@@ -52,8 +55,10 @@ impl CpuMemory {
             self.ppu.store(0x2000 + address % 8, value);
         } else if address == 0x4014 {
             self.dma();
-        } else if address < 0x4018 {
+        } else if address == 0x4016 {
             self.controller.store(address, value);
+        } else if address < 0x4018 {
+            // TODO: APU
         } else if address < 0x6000 {
             println!("Writing {:08b} to memory at {:04x} - Not implemented yet", value, address);
             //panic!("Address storing at {:04x} not implemented", address);
