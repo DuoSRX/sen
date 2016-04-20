@@ -373,9 +373,17 @@ impl Cpu {
     }
 
     pub fn load_word(&mut self, address: u16) -> u16 {
-        let lo = self.ram.load(address) as u16;
-        let hi = self.ram.load(address + 1) as u16;
-        lo | hi << 8
+        // let lo = self.ram.load(address) as u16;
+        // let hi = self.ram.load(address + 1);
+        // lo | hi << 8 self.loadb(addr) as u16 | (self.loadb(addr + 1) as u16) << 8
+         self.ram.load(address) as u16 | (self.ram.load(address + 1) as u16) << 8
+    }
+
+    pub fn load_word_zero_page(&mut self, address: u16) -> u16 {
+        // let lo = self.ram.load(address) as u16;
+        // let hi = self.ram.load(address + 1) as u16;
+        // lo | hi << 8
+        self.ram.load(address as u16) as u16 | (self.ram.load((address + 1) as u16) as u16) << 8
     }
 
     pub fn store_byte(&mut self, address: u16, value: u8) {
@@ -467,17 +475,15 @@ impl Cpu {
 
     // e.g. LDA ($20,X)
     fn indirect_x(&mut self) -> MemoryAM {
-        let page = self.load_byte_and_inc_pc();
-        let indirect = page + self.regs.x;
-        let address = self.load_word(indirect as u16);
+        let target = self.load_byte_and_inc_pc().wrapping_add(self.regs.x);
+        let address = self.load_word_zero_page(target as u16);
         MemoryAM { address: address }
     }
 
     // e.g. LDA ($86),Y
     fn indirect_y(&mut self) -> MemoryAM {
-        let page = self.load_byte_and_inc_pc();
-        let y = self.regs.y as u16;
-        let address = self.load_word(page as u16).wrapping_add(y);
+        let target = self.load_byte_and_inc_pc();
+        let address = self.load_word_zero_page(target as u16).wrapping_add(self.regs.y as u16);
         MemoryAM { address: address }
     }
 
@@ -515,7 +521,7 @@ impl Cpu {
         let value = am.load(self);
         let mut result = value as u32 + self.regs.a as u32;
         if self.regs.carry {
-            result += 1;
+            result = result.wrapping_add(1);
         }
 
         self.regs.carry = (result & 0x100) != 0;
@@ -531,7 +537,7 @@ impl Cpu {
         let value = am.load(self);
         let mut result = (value as u32).wrapping_sub(self.regs.a as u32);
         if !self.regs.carry {
-            result -= 1;
+            result = result.wrapping_sub(1);
         }
 
         self.regs.carry = (result & 0x100) == 0;
@@ -730,7 +736,7 @@ impl Cpu {
         let low = self.load_byte(indirect);
         let high = self.load_byte((indirect & 0xFF00) | ((indirect + 1) & 0x00FF));
 
-        self.regs.pc = (high as u16) << 8 | low as u16;
+        self.regs.pc = ((high as u16) << 8) | low as u16;
     }
 
     fn jsr(&mut self) {

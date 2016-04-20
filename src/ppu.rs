@@ -19,36 +19,36 @@ pub struct PpuResult {
     pub nmi: bool
 }
 
-struct Sprite {
-    pub x: u8,
-    pub y: u8,
-    pub index: u8,
-    // pub attributes: u8 // vhp---PP
-}
-
-enum Tiles {
-    Tiles8(u16),
-    Tiles16(u16, u16)
-}
-
-// http://wiki.nesdev.com/w/index.php/PPU_OAM
-impl Sprite {
-    fn get_tiles(&self, ppu: &Ppu) -> Tiles {
-        let address = if (ppu.regs.control & 0x08) == 0 { 0 } else { 0x1000 };
-        let big = if (ppu.regs.control & 0x20) == 0 { false } else { true };
-
-        if big {
-            Tiles::Tiles8(self.index as u16 | address)
-        } else {
-            // Ignore PPUCTRL and take bit 0 instead
-            let mut address: u16 = self.index as u16 & !1;
-            if (self.index & 1) != 0 {
-                address += 0x1000;
-            }
-            Tiles::Tiles16(address as u16, address as u16 + 1)
-        }
-    }
-}
+// struct Sprite {
+//     pub x: u8,
+//     pub y: u8,
+//     pub index: u8,
+//     // pub attributes: u8 // vhp---PP
+// }
+//
+// enum Tiles {
+//     Tiles8(u16),
+//     Tiles16(u16, u16)
+// }
+//
+// // http://wiki.nesdev.com/w/index.php/PPU_OAM
+// impl Sprite {
+//     fn get_tiles(&self, ppu: &Ppu) -> Tiles {
+//         let address = if (ppu.regs.control & 0x08) == 0 { 0 } else { 0x1000 };
+//         let big = if (ppu.regs.control & 0x20) == 0 { false } else { true };
+//
+//         if big {
+//             Tiles::Tiles8(self.index as u16 | address)
+//         } else {
+//             // Ignore PPUCTRL and take bit 0 instead
+//             let mut address: u16 = self.index as u16 & !1;
+//             if (self.index & 1) != 0 {
+//                 address += 0x1000;
+//             }
+//             Tiles::Tiles16(address as u16, address as u16 + 1)
+//         }
+//     }
+// }
 
 pub struct Vram {
     pub val: [u8; 0x800],
@@ -159,7 +159,8 @@ impl Ppu {
         if address < 0x2000 {
             self.cartridge.chr[address as usize]
         } else if address < 0x3F00 {
-            self.name_tables[address as usize & 0x0FFF]
+            //self.name_tables[address as usize & 0x0FFF]
+            self.name_tables[address as usize & 0x07FF]
         } else if address < 0x4000 {
             self.palettes[address as usize & 0x1F]
         } else {
@@ -169,13 +170,13 @@ impl Ppu {
 
     pub fn vram_store(&mut self, address: u16, value: u8) {
         if address < 0x2000 {
-            self.cartridge.chr[address as usize] = value;
+            //self.cartridge.chr[address as usize] = value;
         } else if address < 0x3F00 {
-            self.name_tables[address as usize & 0x0FFF] = value;
+            self.name_tables[address as usize & 0x07FF] = value;
         } else if address < 0x4000 {
             self.palettes[address as usize & 0x1F] = value;
         } else {
-            panic!("Storing VRam at {:04x} is not valid!");
+            panic!("Storing VRam at {:04x} is not valid!", address);
         }
     }
 
@@ -248,13 +249,14 @@ impl Ppu {
 
     // $2006 Write to PPUADDR
     fn write_address(&mut self, address: u8) {
-        if self.vram_rw_high {
-            self.regs.address = (address as u16) << 8;
-            self.vram_rw_high = false;
-        } else {
-            self.regs.address += address as u16;
-            self.vram_rw_high = true;
-        }
+        self.regs.address = (self.regs.address << 8) | (address as u16);
+        // if self.vram_rw_high {
+        //     self.regs.address = (address as u16) << 8;
+        //     self.vram_rw_high = false;
+        // } else {
+        //     self.regs.address += address as u16;
+        //     self.vram_rw_high = true;
+        // }
     }
 
     // $2005 Write to PPUSCROLL
@@ -277,13 +279,17 @@ impl Ppu {
 
     fn make_scanline(&mut self) {
         let scanline = self.scanline;
-        let offset = 8192 + 32 * (scanline / 8);
+        let base_nametable = 0x2000 + (self.regs.control & 0x3) as u16 * 0x400;
+        let offset = base_nametable + 32 * (scanline / 8);
+        // println!("{:04x}", offset);
 
         for x in 0..256 {
             if self.regs.mask & 0x08 != 0 { // show background
-                let current_tile = self.vram_load(offset + (x / 8));
+                let current_tile = self.vram_load(offset + x as u16 / 8) as u32;
                 let mut offset2 = (current_tile << 4) as u16 + (scanline as u16) % 8;
                 offset2 += if self.regs.control & ppuctrl::BG_PATTERN_TABLE_ADDRESS == 0 { 0 } else { 0x1000 };
+
+
                 let p0 = self.vram_load(offset2);
                 let p1 = self.vram_load(offset2 + 8);
                 let bit0 = (p0 >> (7 - ((x % 8) as u8))) & 1;
@@ -294,30 +300,29 @@ impl Ppu {
                 let c = (result << 6) as u32;
                 self.set_pixel(x as u32, scanline as u32, (c << 8) | (c << 16) | (c << 24));
             } else {
-                let c = 0;
-                self.set_pixel(x as u32, scanline as u32, (c << 8) | (c << 16) | (c << 24));
+                self.set_pixel(x as u32, scanline as u32, 0);
             }
 
-            if self.regs.mask & 0x10 != 0 { // show sprites
-                for n in 0..64 {
-                    let sprite = Sprite {
-                        x: self.oam_data[n * 4 + 3],
-                        y: self.oam_data[n * 4],
-                        index: self.oam_data[n * 4 + 1],
-                        // attributes: self.oam_data[n * 4 + 2],
-                    };
-
-                    if x < sprite.x as u16 || x >= sprite.x as u16 + 8 || scanline < sprite.y as u16 { continue };
-                    if (self.regs.control & 0x20) == 0 { // 8x8
-                        if scanline >= sprite.y as u16 + 8 { continue }
-                    } else { // 8x16
-                        if scanline >= sprite.y as u16 + 16 { continue }
-                    }
-
-                    let c = 128;
-                    self.set_pixel(x as u32, scanline as u32, (c << 8) | (c << 16) | (c << 24));
-                }
-            }
+            // if self.regs.mask & 0x10 != 0 { // show sprites
+            //     for n in 0..64 {
+            //         let sprite = Sprite {
+            //             x: self.oam_data[n * 4 + 3],
+            //             y: self.oam_data[n * 4],
+            //             index: self.oam_data[n * 4 + 1],
+            //             // attributes: self.oam_data[n * 4 + 2],
+            //         };
+            //
+            //         if x < sprite.x as u16 || x >= sprite.x as u16 + 8 || scanline < sprite.y as u16 { continue };
+            //         if (self.regs.control & 0x20) == 0 { // 8x8
+            //             if scanline >= sprite.y as u16 + 8 { continue }
+            //         } else { // 8x16
+            //             if scanline >= sprite.y as u16 + 16 { continue }
+            //         }
+            //
+            //         let c = 128;
+            //         self.set_pixel(x as u32, scanline as u32, (c << 8) | (c << 16) | (c << 24));
+            //     }
+            // }
         }
     }
 
