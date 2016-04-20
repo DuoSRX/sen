@@ -14,6 +14,11 @@ mod ppumask {
     pub const SPRITES:         u8 = 0b00010000;
 }
 
+pub struct PpuResult {
+    pub new_frame: bool,
+    pub nmi: bool
+}
+
 struct Sprite {
     pub x: u8,
     pub y: u8,
@@ -36,7 +41,7 @@ impl Sprite {
             Tiles::Tiles8(self.index as u16 | address)
         } else {
             // Ignore PPUCTRL and take bit 0 instead
-            let mut address = self.index & !1;
+            let mut address: u16 = self.index as u16 & !1;
             if (self.index & 1) != 0 {
                 address += 0x1000;
             }
@@ -109,13 +114,11 @@ pub struct Ppu {
     scroll_x: u8,
     scroll_y: u8,
     next_scroll_x: bool,
-    pub nmi: bool,
 
     pub cycle: u64,
-    scanline: u16, // 0-239 is visible, 240 post, 241-260 vblank, 261 pre
-    frame: u64,
     pub new_frame: bool,
     pub frame_content: [u8; 256 * 240 * 3],
+    scanline: u16, // 0-239 is visible, 240 post, 241-260 vblank, 261 pre
 
     palettes: [u8; 32],
     name_tables: [u8; 2048],
@@ -132,13 +135,11 @@ impl Ppu {
             scroll_x: 0,
             scroll_y: 0,
             next_scroll_x: true,
-            nmi: false,
 
             cycle: 340,
-            scanline: 240,
             new_frame: false,
-            frame: 0,
             frame_content: [0; 256 * 240 * 3],
+            scanline: 240,
 
             palettes: [0; 32],
             name_tables: [0; 2048],
@@ -149,7 +150,6 @@ impl Ppu {
     pub fn reset(&mut self) {
         self.cycle = 340;
         self.scanline = 240;
-        self.frame = 0;
         self.regs.control = 0;
         self.regs.mask = 0;
         self.regs.oam_address = 0;
@@ -322,9 +322,8 @@ impl Ppu {
     }
 
     #[inline(always)]
-    pub fn step(&mut self, cpu_cycle: u64) {
-        self.nmi = false;
-        // self.frame_content = [0; 256 * 240 * 3];
+    pub fn step(&mut self, cpu_cycle: u64) -> PpuResult {
+        let mut result = PpuResult { new_frame: false, nmi: false };
 
         loop {
             let next_scanline = 114 + self.cycle;
@@ -339,16 +338,17 @@ impl Ppu {
             if self.scanline == 241 { // VBlank
                 self.regs.status |= 0x80;
                 if (self.regs.control | 0x80) != 0 {
-                    self.nmi = true;
+                    result.nmi = true;
                 }
             } else if self.scanline == 261 {
-                self.new_frame = true;
-                self.frame += 1;
+                result.new_frame = true;
                 self.scanline = 0;
                 self.regs.status &= !0x80;
             }
 
             self.cycle += 114;
         }
+
+        result
     }
 }

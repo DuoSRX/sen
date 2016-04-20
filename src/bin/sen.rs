@@ -4,10 +4,9 @@ extern crate sdl2;
 use std::fs::File;
 use std::path::Path;
 
-use sdl2::pixels::{Color,PixelFormatEnum};
+use sdl2::pixels::PixelFormatEnum;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::rect::Rect;
 
 use sen::cpu::Cpu;
 use sen::ppu::Ppu;
@@ -43,23 +42,23 @@ fn main() {
         .build()
         .unwrap();
 
-    let mut renderer = window.renderer().build().unwrap();
+    let mut renderer = window.renderer().accelerated().build().unwrap();
 
-    renderer.set_draw_color(Color::RGB(0,0,0));
+    // renderer.set_draw_color(Color::RGB(0,0,0));
     renderer.clear();
-    renderer.set_draw_color(Color::RGB(255,255,255));
+    // renderer.set_draw_color(Color::RGB(255,255,255));
 
     let mut event_pump = sdl_context.event_pump().unwrap();
-    let mut texture = renderer.create_texture_streaming(PixelFormatEnum::BGR24, 256, 240).unwrap();
+    let mut texture = renderer.create_texture_target(PixelFormatEnum::BGR24, 256, 240).unwrap();
 
     'running: loop {
         cpu.step();
-        cpu.ram.ppu.step(cpu.cycle);
+        let ppu_result = cpu.ram.ppu.step(cpu.cycle);
 
-        if cpu.ram.ppu.nmi { cpu.nmi(); }
+        if ppu_result.nmi { cpu.nmi(); }
 
-        if cpu.ram.ppu.new_frame {
-            // println!("Rendered new frame (CPU: {} PPU: {})", cpu.cycle, cpu.ram.ppu.cycle);
+        if ppu_result.new_frame {
+        //     // println!("Rendered new frame (CPU: {} PPU: {})", cpu.cycle, cpu.ram.ppu.cycle);
             texture.update(None, &cpu.ram.ppu.frame_content, 256 * 3).unwrap();
             renderer.clear();
             renderer.copy(&texture, None, None); //Some(Rect::new(0, 0, 256, 240)));
