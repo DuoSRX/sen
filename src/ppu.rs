@@ -14,6 +14,37 @@ mod ppumask {
     pub const SPRITES:         u8 = 0b00010000;
 }
 
+struct Sprite {
+    pub x: u8,
+    pub y: u8,
+    pub index: u8,
+    // pub attributes: u8 // vhp---PP
+}
+
+enum Tiles {
+    Tiles8(u16),
+    Tiles16(u16, u16)
+}
+
+// http://wiki.nesdev.com/w/index.php/PPU_OAM
+impl Sprite {
+    fn get_tiles(&self, ppu: &Ppu) -> Tiles {
+        let address = if (ppu.regs.control & 0x08) == 0 { 0 } else { 0x1000 };
+        let big = if (ppu.regs.control & 0x20) == 0 { false } else { true };
+
+        if big {
+            Tiles::Tiles8(self.index as u16 | address)
+        } else {
+            // Ignore PPUCTRL and take bit 0 instead
+            let mut address = self.index & !1;
+            if (self.index & 1) != 0 {
+                address += 0x1000;
+            }
+            Tiles::Tiles16(address as u16, address as u16 + 1)
+        }
+    }
+}
+
 pub struct Vram {
     pub val: [u8; 0x800],
 }
@@ -237,6 +268,7 @@ impl Ppu {
         }
     }
 
+    #[inline(always)]
     fn set_pixel(&mut self, x: u32, y: u32, color: u32) {
         self.frame_content[((y * 256 + x) * 3 + 0) as usize] = (color >> 24) as u8;
         self.frame_content[((y * 256 + x) * 3 + 1) as usize] = (color >> 16) as u8;
@@ -248,7 +280,7 @@ impl Ppu {
         let offset = 8192 + 32 * (scanline / 8);
 
         for x in 0..256 {
-            if self.regs.mask & 0x08 != 0 {
+            if self.regs.mask & 0x08 != 0 { // show background
                 let current_tile = self.vram_load(offset + (x / 8));
                 let mut offset2 = (current_tile << 4) as u16 + (scanline as u16) % 8;
                 offset2 += if self.regs.control & ppuctrl::BG_PATTERN_TABLE_ADDRESS == 0 { 0 } else { 0x1000 };
@@ -265,9 +297,31 @@ impl Ppu {
                 let c = 0;
                 self.set_pixel(x as u32, scanline as u32, (c << 8) | (c << 16) | (c << 24));
             }
+
+            if self.regs.mask & 0x10 != 0 { // show sprites
+                for n in 0..64 {
+                    let sprite = Sprite {
+                        x: self.oam_data[n * 4 + 3],
+                        y: self.oam_data[n * 4],
+                        index: self.oam_data[n * 4 + 1],
+                        // attributes: self.oam_data[n * 4 + 2],
+                    };
+
+                    if x < sprite.x as u16 || x >= sprite.x as u16 + 8 || scanline < sprite.y as u16 { continue };
+                    if (self.regs.control & 0x20) == 0 { // 8x8
+                        if scanline >= sprite.y as u16 + 8 { continue }
+                    } else { // 8x16
+                        if scanline >= sprite.y as u16 + 16 { continue }
+                    }
+
+                    let c = 128;
+                    self.set_pixel(x as u32, scanline as u32, (c << 8) | (c << 16) | (c << 24));
+                }
+            }
         }
     }
 
+    #[inline(always)]
     pub fn step(&mut self, cpu_cycle: u64) {
         self.nmi = false;
         // self.frame_content = [0; 256 * 240 * 3];
