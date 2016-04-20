@@ -30,6 +30,7 @@ pub const OVERFLOW_FLAG:  u8 = 0b01000000;
 pub const NEGATIVE_FLAG:  u8 = 0b10000000;
 
 // Lifted from FCEUX
+// This is fine but doesn't include the added cycle when crossing a page
 const CYCLES_PER_INSTRUCTION: [u8; 256] = [
     7,6,2,8,3,3,5,5,3,2,2,2,4,4,6,6,
     2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
@@ -57,8 +58,8 @@ trait AddressingMode {
 
 struct AccumulatorAM;
 impl AddressingMode for AccumulatorAM {
-    fn load(&self, cpu: &mut Cpu) -> u8 { cpu.regs.a }
-    fn store(&self, cpu: &mut Cpu, value: u8) { cpu.regs.a = value }
+    fn load(&self, cpu: &mut Cpu) -> u8 { cpu.a }
+    fn store(&self, cpu: &mut Cpu, value: u8) { cpu.a = value }
 }
 
 struct MemoryAM {
@@ -75,8 +76,10 @@ impl AddressingMode for ImmediateAM {
     fn store(&self, _cpu: &mut Cpu, _value: u8) { panic!("uhhh I can't store using Immediate Addressing Mode") }
 }
 
-#[derive(Debug)]
-pub struct Registers {
+pub struct Cpu {
+    pub ram: CpuMemory,
+    pub cycle: u64,
+
     pub a: u8,
     pub x: u8,
     pub y: u8,
@@ -93,9 +96,12 @@ pub struct Registers {
     sign: bool
 }
 
-impl Registers {
-    fn new() -> Registers {
-        Registers {
+impl Cpu {
+    pub fn new(memory: CpuMemory) -> Cpu {
+        Cpu {
+            ram: memory,
+            cycle: 0,
+
             a: 0,
             x: 0,
             y: 0,
@@ -112,36 +118,20 @@ impl Registers {
             sign: false
         }
     }
-}
-
-pub struct Cpu {
-    pub regs: Registers,
-    pub ram: CpuMemory,
-    pub cycle: u64,
-}
-
-impl Cpu {
-    pub fn new(memory: CpuMemory) -> Cpu {
-        Cpu {
-            regs: Registers::new(),
-            ram: memory,
-            cycle: 0
-        }
-    }
 
     pub fn reset(&mut self) {
         let start = self.load_word(0xFFFC);
         println!("Starting at {:04x}", start);
-        self.regs.pc = start;
+        self.pc = start;
     }
 
     pub fn step(&mut self) {
         let instruction = self.load_byte_and_inc_pc();
-        // print!("{:04x}: {:?}", self.regs.pc - 1 - 0xc79e, self);
-        // print!("{:04x}: {:?}", self.regs.pc - 1, self);
-        //print!(" Flags: {:08b}", self.regs.p);
+        // print!("{:04x}: {:?}", self.pc - 1 - 0xc79e, self);
+        // print!("{:04x}: {:?}", self.pc - 1, self);
+        //print!(" Flags: {:08b}", self.p);
         // println!(" Instruction: {:02x}", instruction);
-        // let pc = self.regs.pc;
+        // let pc = self.pc;
         // println!(" Instr {:02x} {:02x} {:02x}", instruction, self.load_byte(pc), self.load_byte(pc + 1));
         // for i in 0..31 {
         //     print!("{:02x} ", self.ram.ram.val[i]);
@@ -398,9 +388,9 @@ impl Cpu {
     }
 
     fn load_byte_and_inc_pc(&mut self) -> u8 {
-        let pc = self.regs.pc;
+        let pc = self.pc;
         let byte = self.load_byte(pc);
-        self.regs.pc += 1;
+        self.pc += 1;
         byte
     }
 
@@ -412,34 +402,34 @@ impl Cpu {
 
     // Stack operations
     fn push_byte(&mut self, value: u8) {
-        let stack_pointer = self.regs.s;
+        let stack_pointer = self.s;
         self.store_byte(0x100 + stack_pointer as u16, value);
-        self.regs.s -= 1;
+        self.s -= 1;
     }
 
     fn push_word(&mut self, value: u16) {
-        let stack_pointer = self.regs.s - 1;
+        let stack_pointer = self.s - 1;
         self.store_word(0x100 + stack_pointer as u16, value);
-        self.regs.s -= 2;
+        self.s -= 2;
     }
 
     fn pop_byte(&mut self) -> u8 {
-        let stack_pointer = self.regs.s;
+        let stack_pointer = self.s;
         let byte = self.load_byte(0x100 + stack_pointer as u16 + 1);
-        self.regs.s += 1;
+        self.s += 1;
         byte
     }
 
     fn pop_word(&mut self) -> u16 {
-        let stack_pointer = self.regs.s;
+        let stack_pointer = self.s;
         let word = self.load_word(0x100 + stack_pointer as u16 + 1);
-        self.regs.s += 2;
+        self.s += 2;
         word
     }
 
     fn set_nz_flags(&mut self, value: u8) {
-        self.regs.zero = value == 0;
-        self.regs.sign = (value & 0x80) != 0;
+        self.zero = value == 0;
+        self.sign = (value & 0x80) != 0;
     }
 
     // Generate addressing modes
@@ -449,12 +439,12 @@ impl Cpu {
     }
 
     fn zero_page_x(&mut self) -> MemoryAM {
-        let address = self.load_byte_and_inc_pc().wrapping_add(self.regs.x);
+        let address = self.load_byte_and_inc_pc().wrapping_add(self.x);
         MemoryAM { address: address as u16 }
     }
 
     fn zero_page_y(&mut self) -> MemoryAM {
-        let address = self.load_byte_and_inc_pc().wrapping_add(self.regs.y);
+        let address = self.load_byte_and_inc_pc().wrapping_add(self.y);
         MemoryAM { address: address as u16 }
     }
 
@@ -464,18 +454,18 @@ impl Cpu {
     }
 
     fn absolute_x(&mut self) -> MemoryAM {
-        let address = self.load_word_and_inc_pc().wrapping_add(self.regs.x as u16);
+        let address = self.load_word_and_inc_pc().wrapping_add(self.x as u16);
         MemoryAM { address: address }
     }
 
     fn absolute_y(&mut self) -> MemoryAM {
-        let address = self.load_word_and_inc_pc().wrapping_add(self.regs.y as u16);
+        let address = self.load_word_and_inc_pc().wrapping_add(self.y as u16);
         MemoryAM { address: address }
     }
 
     // e.g. LDA ($20,X)
     fn indirect_x(&mut self) -> MemoryAM {
-        let target = self.load_byte_and_inc_pc().wrapping_add(self.regs.x);
+        let target = self.load_byte_and_inc_pc().wrapping_add(self.x);
         let address = self.load_word_zero_page(target as u16);
         MemoryAM { address: address }
     }
@@ -483,70 +473,70 @@ impl Cpu {
     // e.g. LDA ($86),Y
     fn indirect_y(&mut self) -> MemoryAM {
         let target = self.load_byte_and_inc_pc();
-        let address = self.load_word_zero_page(target as u16).wrapping_add(self.regs.y as u16);
+        let address = self.load_word_zero_page(target as u16).wrapping_add(self.y as u16);
         MemoryAM { address: address }
     }
 
     fn get_flags(&self) -> u8 {
         let mut p = 0;
 
-        if self.regs.sign      { p |= NEGATIVE_FLAG }
-        if self.regs.overflow  { p |= OVERFLOW_FLAG }
-        if self.regs.brk       { p |= BREAK_FLAG }
-        if self.regs.decimal   { p |= DECIMAL_FLAG }
-        if self.regs.interrupt { p |= INTERRUPT_FLAG }
-        if self.regs.zero      { p |= ZERO_FLAG }
-        if self.regs.carry     { p |= CARRY_FLAG }
+        if self.sign      { p |= NEGATIVE_FLAG }
+        if self.overflow  { p |= OVERFLOW_FLAG }
+        if self.brk       { p |= BREAK_FLAG }
+        if self.decimal   { p |= DECIMAL_FLAG }
+        if self.interrupt { p |= INTERRUPT_FLAG }
+        if self.zero      { p |= ZERO_FLAG }
+        if self.carry     { p |= CARRY_FLAG }
 
         return p
     }
 
     fn set_flags(&mut self, flags: u8) {
-        self.regs.sign = (flags & NEGATIVE_FLAG) != 0;
-        self.regs.overflow = (flags & OVERFLOW_FLAG) != 0;
-        self.regs.brk = (flags & BREAK_FLAG) != 0;
-        self.regs.decimal = (flags & DECIMAL_FLAG) != 0;
-        self.regs.interrupt = (flags & INTERRUPT_FLAG) != 0;
-        self.regs.zero = (flags & ZERO_FLAG) != 0;
-        self.regs.carry = (flags & CARRY_FLAG) != 0;
+        self.sign = (flags & NEGATIVE_FLAG) != 0;
+        self.overflow = (flags & OVERFLOW_FLAG) != 0;
+        self.brk = (flags & BREAK_FLAG) != 0;
+        self.decimal = (flags & DECIMAL_FLAG) != 0;
+        self.interrupt = (flags & INTERRUPT_FLAG) != 0;
+        self.zero = (flags & ZERO_FLAG) != 0;
+        self.carry = (flags & CARRY_FLAG) != 0;
     }
 
     // Instructions
     fn nop(&mut self, to_skip: u8) {
-        self.regs.pc += to_skip as u16;
+        self.pc += to_skip as u16;
     }
 
     // Arithmetic
     fn adc<AM: AddressingMode>(&mut self, am: AM) {
         let value = am.load(self);
-        let mut result = value as u32 + self.regs.a as u32;
-        if self.regs.carry {
+        let mut result = value as u32 + self.a as u32;
+        if self.carry {
             result = result.wrapping_add(1);
         }
 
-        self.regs.carry = (result & 0x100) != 0;
+        self.carry = (result & 0x100) != 0;
         self.set_nz_flags(result as u8);
 
-        let a = self.regs.a;
-        self.regs.overflow = (a ^ value) & 0x80 == 0 && (a ^ result as u8) & 0x80 == 0x80;
+        let a = self.a;
+        self.overflow = (a ^ value) & 0x80 == 0 && (a ^ result as u8) & 0x80 == 0x80;
 
-        self.regs.a = (result as u8) & 0xFF;
+        self.a = (result as u8) & 0xFF;
     }
 
     fn sbc<AM: AddressingMode>(&mut self, am: AM) {
         let value = am.load(self);
-        let mut result = (value as u32).wrapping_sub(self.regs.a as u32);
-        if !self.regs.carry {
+        let mut result = (value as u32).wrapping_sub(self.a as u32);
+        if !self.carry {
             result = result.wrapping_sub(1);
         }
 
-        self.regs.carry = (result & 0x100) == 0;
+        self.carry = (result & 0x100) == 0;
         self.set_nz_flags(result as u8);
 
-        let a = self.regs.a;
-        self.regs.overflow = (a ^ value) & 0x80 == 0 && (a ^ result as u8) & 0x80 == 0x80;
+        let a = self.a;
+        self.overflow = (a ^ value) & 0x80 == 0 && (a ^ result as u8) & 0x80 == 0x80;
 
-        self.regs.a = (result as u8) & 0xFF;
+        self.a = (result as u8) & 0xFF;
     }
 
     fn inc<AM: AddressingMode>(&mut self, am: AM) {
@@ -563,93 +553,93 @@ impl Cpu {
 
     fn lda<AM: AddressingMode>(&mut self, am: AM) {
         let val = am.load(self);
-        self.regs.a = val;
+        self.a = val;
         self.set_nz_flags(val)
     }
 
     fn ldx<AM: AddressingMode>(&mut self, am: AM) {
         let val = am.load(self);
-        self.regs.x = val;
+        self.x = val;
         self.set_nz_flags(val)
     }
 
     fn ldy<AM: AddressingMode>(&mut self, am: AM) {
         let val = am.load(self);
-        self.regs.y = val;
+        self.y = val;
         self.set_nz_flags(val)
     }
 
     fn sta<AM: AddressingMode>(&mut self, am: AM) {
-        let a = self.regs.a;
+        let a = self.a;
         am.store(self, a)
     }
 
     fn stx<AM: AddressingMode>(&mut self, am: AM) {
-        let x = self.regs.x;
+        let x = self.x;
         am.store(self, x)
     }
 
     fn sty<AM: AddressingMode>(&mut self, am: AM) {
-        let y = self.regs.y;
+        let y = self.y;
         am.store(self, y)
     }
 
     // Register
     fn tax(&mut self) {
-        let a = self.regs.a;
+        let a = self.a;
         self.set_nz_flags(a);
-        self.regs.x = a;
+        self.x = a;
     }
 
     fn txa(&mut self) {
-        let x = self.regs.x;
+        let x = self.x;
         self.set_nz_flags(x);
-        self.regs.a = x;
+        self.a = x;
     }
 
     fn dex(&mut self) {
-        let x = self.regs.x.wrapping_sub(1);
-        self.regs.x = x;
+        let x = self.x.wrapping_sub(1);
+        self.x = x;
         self.set_nz_flags(x);
     }
 
     fn inx(&mut self) {
-        let x = self.regs.x.wrapping_add(1);
-        self.regs.x = x;
+        let x = self.x.wrapping_add(1);
+        self.x = x;
         self.set_nz_flags(x);
     }
 
     fn tay(&mut self) {
-        let a = self.regs.a;
+        let a = self.a;
         self.set_nz_flags(a);
-        self.regs.y = a;
+        self.y = a;
     }
 
     fn tya(&mut self) {
-        let y = self.regs.y;
+        let y = self.y;
         self.set_nz_flags(y);
-        self.regs.a = y;
+        self.a = y;
     }
 
     fn dey(&mut self) {
-        let y = self.regs.y.wrapping_sub(1);
-        self.regs.y = y;
+        let y = self.y.wrapping_sub(1);
+        self.y = y;
         self.set_nz_flags(y);
     }
 
     fn iny(&mut self) {
-        let y = self.regs.y.wrapping_add(1);
-        self.regs.y = y;
+        let y = self.y.wrapping_add(1);
+        self.y = y;
         self.set_nz_flags(y);
     }
 
     fn txs(&mut self) {
-        self.regs.s = self.regs.x;
+        self.s = self.x;
     }
 
     fn tsx(&mut self) {
-        let s = self.regs.s;
-        self.regs.x = s;
+        let s = self.s;
+        self.x = s;
         self.set_nz_flags(s);
     }
 
@@ -659,13 +649,13 @@ impl Cpu {
         let carry = (value & 0x80) != 0;
         let result = value << 1;
 
-        if self.regs.carry {
+        if self.carry {
             am.store(self, result | 1);
         } else {
             am.store(self, result);
         }
 
-        self.regs.carry = carry;
+        self.carry = carry;
         self.set_nz_flags(result);
         am.store(self, result)
     }
@@ -676,34 +666,34 @@ impl Cpu {
         let carry = (value & 1) != 0;
         let result = value >> 1;
 
-        if self.regs.carry {
+        if self.carry {
             am.store(self, result | 0x80);
         } else {
             am.store(self, result);
         }
 
-        self.regs.carry = carry;
+        self.carry = carry;
         self.set_nz_flags(result);
         am.store(self, result)
     }
 
     fn and<AM:AddressingMode>(&mut self, am: AM) {
-        let a = self.regs.a;
+        let a = self.a;
         let value = am.load(self) & a;
         self.set_nz_flags(value);
-        self.regs.a = value;
+        self.a = value;
     }
 
     fn eor<AM:AddressingMode>(&mut self, am: AM) {
-        let a = self.regs.a;
+        let a = self.a;
         let value = am.load(self) ^ a;
         self.set_nz_flags(value);
-        self.regs.a = value;
+        self.a = value;
     }
 
     fn asl<AM:AddressingMode>(&mut self, am: AM) {
         let value = am.load(self);
-        self.regs.carry = (value & 0x80) != 0;
+        self.carry = (value & 0x80) != 0;
         let result = value << 1;
         self.set_nz_flags(result);
         am.store(self, result)
@@ -711,22 +701,22 @@ impl Cpu {
 
     fn lsr<AM:AddressingMode>(&mut self, am: AM) {
         let value = am.load(self);
-        self.regs.carry = (value & 1) != 0;
+        self.carry = (value & 1) != 0;
         let result = value >> 1;
         self.set_nz_flags(result);
         am.store(self, result)
     }
 
     fn ora<AM:AddressingMode>(&mut self, am: AM) {
-        let result = self.regs.a | am.load(self);
+        let result = self.a | am.load(self);
         self.set_nz_flags(result);
-        self.regs.a = result;
+        self.a = result;
     }
 
     // Jumps
     fn jmp(&mut self) {
          let address = self.load_word_and_inc_pc();
-         self.regs.pc = address;
+         self.pc = address;
     }
 
     fn jmp_indirect(&mut self) {
@@ -736,19 +726,19 @@ impl Cpu {
         let low = self.load_byte(indirect);
         let high = self.load_byte((indirect & 0xFF00) | ((indirect + 1) & 0x00FF));
 
-        self.regs.pc = ((high as u16) << 8) | low as u16;
+        self.pc = ((high as u16) << 8) | low as u16;
     }
 
     fn jsr(&mut self) {
         let address = self.load_word_and_inc_pc();
-        let pc = self.regs.pc - 1;
+        let pc = self.pc - 1;
         self.push_word(pc);
-        self.regs.pc = address;
+        self.pc = address;
     }
 
     // Stack operations
     fn pha(&mut self) {
-        let a = self.regs.a;
+        let a = self.a;
         self.push_byte(a)
     }
 
@@ -763,108 +753,108 @@ impl Cpu {
     }
 
     fn pla(&mut self) {
-        self.regs.a = self.pop_byte()
+        self.a = self.pop_byte()
     }
 
     // Flags operations
     fn clc(&mut self) {
-        self.regs.carry = false;
+        self.carry = false;
     }
 
     fn sec(&mut self) {
-        self.regs.carry = true;
+        self.carry = true;
     }
 
     fn cli(&mut self) {
-        self.regs.interrupt = false;
+        self.interrupt = false;
     }
 
     fn sei(&mut self) {
-        self.regs.interrupt = true;
+        self.interrupt = true;
     }
 
     fn clv(&mut self) {
-        self.regs.overflow = false;
+        self.overflow = false;
     }
 
     fn cld(&mut self) {
-        self.regs.decimal = false;
+        self.decimal = false;
     }
 
     fn sed(&mut self) {
-        self.regs.decimal = true;
+        self.decimal = true;
     }
 
     // Branching
     fn bpl(&mut self) {
-        let sign = self.regs.sign;
+        let sign = self.sign;
         self.generic_branching(!sign)
     }
 
     fn bmi(&mut self) {
-        let sign = self.regs.sign;
+        let sign = self.sign;
         self.generic_branching(sign)
     }
 
     fn bvc(&mut self) {
-        let overflow = self.regs.overflow;
+        let overflow = self.overflow;
         self.generic_branching(!overflow);
     }
 
     fn bvs(&mut self) {
-        let overflow = self.regs.overflow;
+        let overflow = self.overflow;
         self.generic_branching(overflow);
     }
 
     fn bcc(&mut self) {
-        let carry = self.regs.carry;
+        let carry = self.carry;
         self.generic_branching(!carry)
     }
 
     fn bcs(&mut self) {
-        let carry = self.regs.carry;
+        let carry = self.carry;
         self.generic_branching(carry)
     }
 
     fn bne(&mut self) {
-        let zero = self.regs.zero;
+        let zero = self.zero;
         self.generic_branching(!zero);
     }
 
     fn beq(&mut self) {
-        let zero = self.regs.zero;
+        let zero = self.zero;
         self.generic_branching(zero);
     }
 
     fn generic_branching(&mut self, go: bool) {
         let byte = self.load_byte_and_inc_pc() as i8;
         if go {
-            self.regs.pc = (self.regs.pc as i32 + byte as i32) as u16;
+            self.pc = (self.pc as i32 + byte as i32) as u16;
         }
     }
 
     // Comparisons
     fn cmp<AM:AddressingMode>(&mut self, am: AM) {
-        let a = self.regs.a;
+        let a = self.a;
         self.generic_comparison(am, a);
     }
 
     fn cpx<AM:AddressingMode>(&mut self, am: AM) {
-        let x = self.regs.x;
+        let x = self.x;
         self.generic_comparison(am, x);
     }
 
     fn cpy<AM:AddressingMode>(&mut self, am: AM) {
-        let y = self.regs.y;
+        let y = self.y;
         self.generic_comparison(am, y);
     }
 
     fn bit<AM:AddressingMode>(&mut self, am: AM) {
-        let a = self.regs.a;
+        let a = self.a;
         let byte = am.load(self);
         let result = a & byte;
         let overflow = (result >> 6) & 1;
-        self.regs.overflow = overflow != 0;
+        self.overflow = overflow != 0;
         self.set_nz_flags(result);
     }
 
@@ -872,47 +862,47 @@ impl Cpu {
         let byte = am.load(self);
         let value = reg.wrapping_sub(byte);
         self.set_nz_flags(value);
-        self.regs.carry = reg >= byte;
+        self.carry = reg >= byte;
     }
 
     fn brk(&mut self) {
-        let pc = self.regs.pc;
+        let pc = self.pc;
         self.push_word(pc + 1);
         let flags = self.get_flags();
         self.push_byte(flags);
         self.sei();
-        self.regs.pc = self.load_word(0xFFFE);
+        self.pc = self.load_word(0xFFFE);
     }
 
     fn rti(&mut self) {
         let flags = self.pop_byte();
         self.set_flags(flags);
         let pc = self.pop_word();
-        self.regs.pc = pc;
+        self.pc = pc;
     }
 
     fn rts(&mut self) {
         let pc = self.pop_word();
-        self.regs.pc = pc + 1;
+        self.pc = pc + 1;
     }
 
     pub fn nmi(&mut self) {
-        let pc = self.regs.pc;
+        let pc = self.pc;
         self.push_word(pc);
         self.php();
-        self.regs.pc = self.load_word(0xFFFA);
+        self.pc = self.load_word(0xFFFA);
     }
 }
 
 impl std::fmt::Debug for Cpu {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.write_fmt(format_args!("A:{:02x} X:{:02x} Y:{:02x} Zero: {} SP:{:02X} PC:{:04x}",
-            self.regs.a,
-            self.regs.x,
-            self.regs.y,
-            self.regs.zero,
+            self.a,
+            self.x,
+            self.y,
+            self.zero,
             self.get_flags(),
-            self.regs.pc
+            self.pc
         ))
     }
 }
