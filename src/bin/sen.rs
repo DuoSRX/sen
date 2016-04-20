@@ -11,6 +11,7 @@ use sdl2::keyboard::Keycode;
 use sen::cpu::Cpu;
 use sen::ppu::Ppu;
 use sen::cartridge::Cartridge;
+use sen::controller::Controller;
 use sen::memory::CpuMemory;
 
 fn main() {
@@ -27,7 +28,8 @@ fn main() {
     println!("{}", cartridge.header);
 
     let ppu = Ppu::new(cartridge2);
-    let memory = CpuMemory::new(cartridge, ppu);
+    let controller = Controller::new();
+    let memory = CpuMemory::new(cartridge, ppu, controller);
     let mut cpu = Cpu::new(memory);
 
     cpu.reset();
@@ -67,6 +69,9 @@ fn main() {
                 Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     break 'running
                 },
+                Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
+                    cpu.ram.controller.buttons[3] = true;
+                }
                 _ => {}
             }
         }

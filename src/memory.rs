@@ -1,6 +1,7 @@
 use std;
 
 use cartridge::Cartridge;
+use controller::Controller;
 use ppu::Ppu;
 
 trait Memory {
@@ -12,15 +13,16 @@ pub struct CpuMemory {
     pub ram: Ram,
     pub cartridge: Cartridge,
     pub ppu: Ppu,
+    pub controller: Controller
     // TODO: apu
-    // TODO: controllers
 }
 
 impl CpuMemory {
-    pub fn new(cartridge: Cartridge, ppu: Ppu) -> CpuMemory {
+    pub fn new(cartridge: Cartridge, ppu: Ppu, controller: Controller) -> CpuMemory {
         CpuMemory {
             cartridge: cartridge,
             ppu: ppu,
+            controller: controller,
             ram: Ram::new()
         }
     }
@@ -31,13 +33,14 @@ impl CpuMemory {
             return self.ram.load(address);
         } else if address < 0x4000 {
             return self.ppu.load(0x2000 + address % 8);
+        } else if address < 0x4018 {
+            return self.controller.load(address);
         } else if address < 0x6000 {
-            //println!("Reading from PPU at {:04x}", address);
+            println!("Reading from memory at {:04x} - Not implemented yet", address);
             return 0;
             //panic!("Address loading at {:04x} not implemented", address);
         } else {
             // FIXME: Yeah. This should go to a mapper. This does not work correctly;
-            //println!("{:02x}", self.cartridge.prg[address as usize & 0x3FFF]);
             return self.cartridge.prg[address as usize & 0x3FFF];
         };
     }
@@ -49,8 +52,10 @@ impl CpuMemory {
             self.ppu.store(0x2000 + address % 8, value);
         } else if address == 0x4014 {
             self.dma();
+        } else if address < 0x4018 {
+            self.controller.store(address, value);
         } else if address < 0x6000 {
-            //println!("Writing {:08b} to PPU at {:04x} (Not implemented yet)", value, address);
+            println!("Writing {:08b} to memory at {:04x} - Not implemented yet", value, address);
             //panic!("Address storing at {:04x} not implemented", address);
         } else {
             // TODO: Move to a mapper module?
