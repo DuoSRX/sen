@@ -44,9 +44,7 @@ fn main() {
 
     let mut renderer = window.renderer().accelerated().build().unwrap();
 
-    // renderer.set_draw_color(Color::RGB(0,0,0));
     renderer.clear();
-    // renderer.set_draw_color(Color::RGB(255,255,255));
 
     let mut event_pump = sdl_context.event_pump().unwrap();
     let mut texture = renderer.create_texture_target(PixelFormatEnum::BGR24, 256, 240).unwrap();
@@ -58,7 +56,6 @@ fn main() {
         if ppu_result.nmi { cpu.nmi(); }
 
         if ppu_result.new_frame {
-        //     // println!("Rendered new frame (CPU: {} PPU: {})", cpu.cycle, cpu.ram.ppu.cycle);
             texture.update(None, &cpu.ram.ppu.frame_content, 256 * 3).unwrap();
             renderer.clear();
             renderer.copy(&texture, None, None); //Some(Rect::new(0, 0, 256, 240)));

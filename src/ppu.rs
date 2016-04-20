@@ -250,13 +250,6 @@ impl Ppu {
     // $2006 Write to PPUADDR
     fn write_address(&mut self, address: u8) {
         self.regs.address = (self.regs.address << 8) | (address as u16);
-        // if self.vram_rw_high {
-        //     self.regs.address = (address as u16) << 8;
-        //     self.vram_rw_high = false;
-        // } else {
-        //     self.regs.address += address as u16;
-        //     self.vram_rw_high = true;
-        // }
     }
 
     // $2005 Write to PPUSCROLL
@@ -281,7 +274,6 @@ impl Ppu {
         let scanline = self.scanline;
         let base_nametable = 0x2000 + (self.regs.control & 0x3) as u16 * 0x400;
         let offset = base_nametable + 32 * (scanline / 8);
-        // println!("{:04x}", offset);
 
         for x in 0..256 {
             if self.regs.mask & 0x08 != 0 { // show background
