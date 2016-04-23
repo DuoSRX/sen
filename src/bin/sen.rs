@@ -62,75 +62,43 @@ fn main() {
             renderer.clear();
             renderer.copy(&texture, None, None); //Some(Rect::new(0, 0, 256, 240)));
             renderer.present();
+
+            while let Some(event) = event_pump.poll_event() {
+                match event {
+                    Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                        break 'running
+                    }
+                    _ => ()
+                }
+            }
+
         }
 
-        for event in event_pump.poll_iter() {
-            match event {
-                Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                    break 'running
-                },
-                Event::KeyDown { keycode: Some(Keycode::Z), .. } => {
-                    cpu.ram.controller.buttons[0] = true;
-                }
-                Event::KeyDown { keycode: Some(Keycode::X), .. } => {
-                    cpu.ram.controller.buttons[1] = true;
-                }
-                Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
-                    cpu.ram.controller.buttons[3] = true;
-                }
-                Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
-                    cpu.ram.controller.buttons[4] = true;
-                }
-                Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
-                    cpu.ram.controller.buttons[5] = true;
-                }
-                Event::KeyUp { keycode: Some(_key), .. } => {
-                    cpu.ram.controller.buttons = [false; 8];
-                }
-                _ => {}
-            }
-        }
+        // for event in event_pump.poll_iter() {
+        //     match event {
+        //         Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+        //             break 'running
+        //         },
+        //         Event::KeyDown { keycode: Some(Keycode::Z), .. } => {
+        //             cpu.ram.controller.buttons[0] = true;
+        //         }
+        //         Event::KeyDown { keycode: Some(Keycode::X), .. } => {
+        //             cpu.ram.controller.buttons[1] = true;
+        //         }
+        //         Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
+        //             cpu.ram.controller.buttons[3] = true;
+        //         }
+        //         Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
+        //             cpu.ram.controller.buttons[4] = true;
+        //         }
+        //         Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
+        //             cpu.ram.controller.buttons[5] = true;
+        //         }
+        //         Event::KeyUp { keycode: Some(_key), .. } => {
+        //             cpu.ram.controller.buttons = [false; 8];
+        //         }
+        //         _ => {}
+        //     }
+        // }
     }
 }
-
-// const PIXEL_SIZE: u32 = 4; // const RECT_SIZE: u32 = 32;
-// const GRID_SIZE: i32 = 24;
-//
-// for n in 0..128 {
-//     let x_offset: i32 = ((n % GRID_SIZE) * RECT_SIZE as i32) + PIXEL_SIZE as i32;//n * RECT_SIZE as i32 + 4;
-//     let y_offset: i32 = (n / GRID_SIZE * RECT_SIZE as i32) + PIXEL_SIZE as i32;
-//
-//     for y in 0..8 {
-//         let plane0 = ppu.vram_load(y as u16 + (n as u16 * 16));
-//         let plane1 = ppu.vram_load(y as u16 + (n as u16 * 16) + 8);
-//
-//         for x in 0..8 {
-//             let bit0 = (plane0 >> ((7 - ((x % 8) as u8)) as usize)) & 1;
-//             let bit1 = (plane1 >> ((7 - ((x % 8) as u8)) as usize)) & 1;
-//             let result = (bit1 << 1) | bit0;
-//
-//             match result {
-//                 1 => renderer.set_draw_color(Color::RGB(215,215,215)),
-//                 2 => renderer.set_draw_color(Color::RGB(190,190,190)),
-//                 3 => renderer.set_draw_color(Color::RGB(125,125,125)),
-//                 _ => (),
-//             }
-//
-//             if result > 0 {
-//                 let x_pos = x * 4 + x_offset;
-//                 let y_pos = y * 4 + y_offset;
-//                 let rect = Rect::new(x_pos, y_pos, PIXEL_SIZE, PIXEL_SIZE);
-//                 renderer.fill_rect(rect).unwrap();
-//             }
-//             print!("{}", result);
-//         }
-//         println!("");
-//     }
-//     println!("");
-//     let rect = Rect::new(x_offset, y_offset, RECT_SIZE, RECT_SIZE);
-//     renderer.set_draw_color(Color::RGB(0,0,0));
-//     renderer.draw_rect(rect).unwrap();
-//
-// }
-//
-// renderer.present();
