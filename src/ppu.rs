@@ -19,6 +19,7 @@ pub struct PpuResult {
     pub nmi: bool
 }
 
+// Palette inspired by fogleman/nes
 const PALETTE_RGB: [u32; 64] = [
     0x666666, 0x002A88, 0x1412A7, 0x3B00A4, 0x5C007E,
     0x6E0040, 0x6C0600, 0x561D00, 0x333500, 0x0B4800,
@@ -135,6 +136,7 @@ pub struct Ppu {
     pub new_frame: bool,
     pub frame_content: [u8; 256 * 240 * 3],
     scanline: u16, // 0-239 is visible, 240 post, 241-260 vblank, 261 pre
+    pub frames: u64,
 
     palettes: [u8; 32],
     name_tables: [u8; 2048],
@@ -156,6 +158,7 @@ impl Ppu {
             new_frame: false,
             frame_content: [0; 256 * 240 * 3],
             scanline: 240,
+            frames: 0,
 
             palettes: [0; 32],
             name_tables: [0; 2048],
@@ -278,33 +281,57 @@ impl Ppu {
         }
     }
 
-    #[inline(always)]
     fn set_pixel(&mut self, x: u32, y: u32, color: u32) {
-        self.frame_content[((y * 256 + x) * 3 + 0) as usize] = (color >> 24) as u8;
-        self.frame_content[((y * 256 + x) * 3 + 1) as usize] = (color >> 16) as u8;
-        self.frame_content[((y * 256 + x) * 3 + 2) as usize] = (color >> 8) as u8;
+        self.frame_content[((y * 256 + x) * 3 + 2) as usize] = (color >> 16) as u8;
+        self.frame_content[((y * 256 + x) * 3 + 1) as usize] = (color >> 8) as u8;
+        self.frame_content[((y * 256 + x) * 3 + 0) as usize] = color as u8;
     }
 
     fn make_scanline(&mut self) {
         let scanline = self.scanline;
-        let base_nametable = 0x2000 + (self.regs.control & 0x3) as u16 * 0x400;
-        let offset = base_nametable + 32 * (scanline / 8);
 
         for x in 0..256 {
             if self.regs.mask & 0x08 != 0 { // show background
-                let current_tile = self.vram_load(offset + x as u16 / 8) as u32;
-                let mut offset2 = (current_tile << 4) as u16 + (scanline as u16) % 8;
-                offset2 += if self.regs.control & ppuctrl::BG_PATTERN_TABLE_ADDRESS == 0 { 0 } else { 0x1000 };
+                let x_offset = x as u16 / 8;
+                let y_offset = self.scanline as u16 / 8;
+                let x2 = x % 8;
+                let y2 = (self.scanline % 8) as u8;
 
-                let p0 = self.vram_load(offset2);
-                let p1 = self.vram_load(offset2 + 8);
-                let bit0 = (p0 >> (7 - ((x % 8) as u8))) & 1;
-                let bit1 = (p1 >> (7 - ((x % 8) as u8))) & 1;
+                let tile_address = 0x2000 + 32 * y_offset + x_offset;
+                let tile = self.vram_load(tile_address) as u16;
+
+                let mut offset = (tile << 4) + y2 as u16;
+                // TODO: extract in a function
+                offset += if self.regs.control & ppuctrl::BG_PATTERN_TABLE_ADDRESS == 0 { 0 } else { 0x1000 };
+
+                // TODO: extract in a function
+                let p0 = self.vram_load(offset);
+                let p1 = self.vram_load(offset + 8);
+                let bit0 = (p0 >> (7 - ((x2 % 8) as u8))) & 1;
+                let bit1 = (p1 >> (7 - ((x2 % 8) as u8))) & 1;
                 let result = (bit1 << 1) | bit0;
 
-                let palette_address = 0x3F00 + result as u16 & 0x3F;
-                //let palette = self.vram_load(palette_address);
-                let c = PALETTE_RGB[palette_address as usize];
+                // TODO: extract in a function
+                let block = y_offset / 4 * 8 + x_offset / 4;
+                let attributes = self.vram_load(0x23C0 + block);
+                let left = x_offset % 4 < 2;
+                let top = y_offset % 4 < 2;
+
+                let mut attribute_color = attributes;
+                if !left && top {
+                    attribute_color = attributes >> 2;
+                } else if left && !top {
+                    attribute_color = attributes >> 4;
+                } else if !left && !top {
+                    attribute_color = attributes >> 6;
+                }
+
+                attribute_color &= 0x3;
+
+                let color = (attribute_color << 2) | result;
+                let palette_address = 0x3F00 + color as u16;
+                let palette = self.vram_load(palette_address) & 0x3F;
+                let c = PALETTE_RGB[palette as usize];
                 self.set_pixel(x as u32, scanline as u32, c);
             } else {
                 self.set_pixel(x as u32, scanline as u32, 0);
@@ -333,7 +360,6 @@ impl Ppu {
         }
     }
 
-    #[inline(always)]
     pub fn step(&mut self, cpu_cycle: u64) -> PpuResult {
         let mut result = PpuResult { new_frame: false, nmi: false };
 
@@ -354,6 +380,7 @@ impl Ppu {
                 }
             } else if self.scanline == 261 {
                 result.new_frame = true;
+                self.frames += 1;
                 self.scanline = 0;
                 self.regs.status &= !0x80;
             }
