@@ -4,16 +4,6 @@ use cartridge::Cartridge;
 
 // http://wiki.nesdev.com/w/index.php/PPU_programmer_reference
 
-mod ppuctrl {
-    pub const BG_PATTERN_TABLE_ADDRESS: u8 = 0x10;
-}
-
-#[allow(dead_code)]
-mod ppumask {
-    pub const BACKGROUND: u8 = 0x08;
-    pub const SPRITES:    u8 = 0x10;
-}
-
 pub struct PpuResult {
     pub new_frame: bool,
     pub nmi: bool
@@ -36,36 +26,36 @@ const PALETTE_RGB: [u32; 64] = [
     0xB5EBF2, 0xB8B8B8, 0x000000, 0x000000,
 ];
 
-// struct Sprite {
-//     pub x: u8,
-//     pub y: u8,
-//     pub index: u8,
-//     // pub attributes: u8 // vhp---PP
-// }
-//
-// enum Tiles {
-//     Tiles8(u16),
-//     Tiles16(u16, u16)
-// }
-//
+struct Sprite {
+    pub x: u8,
+    pub y: u8,
+    pub index: u8,
+    pub attributes: u8 // vhp---PP
+}
+
+enum Tiles {
+    Tiles8(u16),
+    Tiles16(u16, u16)
+}
+
 // // http://wiki.nesdev.com/w/index.php/PPU_OAM
-// impl Sprite {
-//     fn get_tiles(&self, ppu: &Ppu) -> Tiles {
-//         let address = if (ppu.regs.control & 0x08) == 0 { 0 } else { 0x1000 };
-//         let big = if (ppu.regs.control & 0x20) == 0 { false } else { true };
-//
-//         if big {
-//             Tiles::Tiles8(self.index as u16 | address)
-//         } else {
-//             // Ignore PPUCTRL and take bit 0 instead
-//             let mut address: u16 = self.index as u16 & !1;
-//             if (self.index & 1) != 0 {
-//                 address += 0x1000;
-//             }
-//             Tiles::Tiles16(address as u16, address as u16 + 1)
-//         }
-//     }
-// }
+impl Sprite {
+    fn get_tiles(&self, ppu: &Ppu) -> Tiles {
+        let address = if (ppu.regs.control & 0x08) == 0 { 0 } else { 0x1000 };
+        let big = if (ppu.regs.control & 0x20) == 0 { false } else { true }; // 8x16 or 8x8
+
+        if big {
+            Tiles::Tiles8(self.index as u16 | address)
+        } else {
+            // Ignore PPUCTRL and take bit 0 instead
+            let mut address: u16 = self.index as u16 & !1;
+            if (self.index & 1) != 0 {
+                address += 0x1000;
+            }
+            Tiles::Tiles16(address as u16, address as u16 + 1)
+        }
+    }
+}
 
 pub struct Vram {
     pub val: [u8; 0x800],
@@ -117,6 +107,7 @@ impl Registers {
             oam_dma: 0
         }
     }
+
 }
 
 //#[derive(Debug)]
@@ -221,6 +212,8 @@ impl Ppu {
         };
     }
 
+    // Registers
+
     fn address_increment(&mut self) -> u16 {
         if self.regs.control & 0x04 == 0 {
             1
@@ -281,6 +274,55 @@ impl Ppu {
         }
     }
 
+    // Rendering
+
+    fn background_pattern_table_address(&self) -> u16 {
+        match self.regs.control & 0x10 {
+            0 => 0,
+            _ => 0x1000,
+        }
+    }
+
+    fn get_background_pixel(&mut self, x: u8) -> u32 {
+        let x_offset = x as u16 / 8;
+        let y_offset = self.scanline as u16 / 8;
+        let x2 = x % 8;
+        let y2 = (self.scanline % 8) as u8;
+
+        let tile_address = 0x2000 + 32 * y_offset + x_offset;
+        let tile = self.vram_load(tile_address) as u16;
+
+        let mut offset = (tile << 4) + y2 as u16;
+        offset += self.background_pattern_table_address();
+
+        let p0 = self.vram_load(offset);
+        let p1 = self.vram_load(offset + 8);
+        let bit0 = (p0 >> (7 - ((x2 % 8) as u8))) & 1;
+        let bit1 = (p1 >> (7 - ((x2 % 8) as u8))) & 1;
+        let result = (bit1 << 1) | bit0;
+
+        let block = y_offset / 4 * 8 + x_offset / 4;
+        let attributes = self.vram_load(0x23C0 + block);
+        let left = x_offset % 4 < 2;
+        let top = y_offset % 4 < 2;
+
+        let mut attribute_color = attributes;
+        if !left && top {
+            attribute_color = attributes >> 2;
+        } else if left && !top {
+            attribute_color = attributes >> 4;
+        } else if !left && !top {
+            attribute_color = attributes >> 6;
+        }
+
+        attribute_color &= 0x3;
+
+        let color = (attribute_color << 2) | result;
+        let palette_address = 0x3F00 + color as u16;
+        let palette = self.vram_load(palette_address) & 0x3F;
+        PALETTE_RGB[palette as usize]
+    }
+
     fn set_pixel(&mut self, x: u32, y: u32, color: u32) {
         self.frame_content[((y * 256 + x) * 3 + 2) as usize] = (color >> 16) as u8;
         self.frame_content[((y * 256 + x) * 3 + 1) as usize] = (color >> 8) as u8;
@@ -290,60 +332,21 @@ impl Ppu {
     fn make_scanline(&mut self) {
         let scanline = self.scanline;
 
-        for x in 0..256 {
+        for x in 0..255 {
             if self.regs.mask & 0x08 != 0 { // show background
-                let x_offset = x as u16 / 8;
-                let y_offset = self.scanline as u16 / 8;
-                let x2 = x % 8;
-                let y2 = (self.scanline % 8) as u8;
-
-                let tile_address = 0x2000 + 32 * y_offset + x_offset;
-                let tile = self.vram_load(tile_address) as u16;
-
-                let mut offset = (tile << 4) + y2 as u16;
-                // TODO: extract in a function
-                offset += if self.regs.control & ppuctrl::BG_PATTERN_TABLE_ADDRESS == 0 { 0 } else { 0x1000 };
-
-                // TODO: extract in a function
-                let p0 = self.vram_load(offset);
-                let p1 = self.vram_load(offset + 8);
-                let bit0 = (p0 >> (7 - ((x2 % 8) as u8))) & 1;
-                let bit1 = (p1 >> (7 - ((x2 % 8) as u8))) & 1;
-                let result = (bit1 << 1) | bit0;
-
-                // TODO: extract in a function
-                let block = y_offset / 4 * 8 + x_offset / 4;
-                let attributes = self.vram_load(0x23C0 + block);
-                let left = x_offset % 4 < 2;
-                let top = y_offset % 4 < 2;
-
-                let mut attribute_color = attributes;
-                if !left && top {
-                    attribute_color = attributes >> 2;
-                } else if left && !top {
-                    attribute_color = attributes >> 4;
-                } else if !left && !top {
-                    attribute_color = attributes >> 6;
-                }
-
-                attribute_color &= 0x3;
-
-                let color = (attribute_color << 2) | result;
-                let palette_address = 0x3F00 + color as u16;
-                let palette = self.vram_load(palette_address) & 0x3F;
-                let c = PALETTE_RGB[palette as usize];
+                let c = self.get_background_pixel(x);
                 self.set_pixel(x as u32, scanline as u32, c);
             } else {
                 self.set_pixel(x as u32, scanline as u32, 0);
             }
 
-            // if self.regs.mask & 0x10 != 0 { // show sprites
+            // if self.regs.mask & 0x10 != 0 { // whether to show sprites or not
             //     for n in 0..64 {
             //         let sprite = Sprite {
             //             x: self.oam_data[n * 4 + 3],
             //             y: self.oam_data[n * 4],
             //             index: self.oam_data[n * 4 + 1],
-            //             // attributes: self.oam_data[n * 4 + 2],
+            //             attributes: self.oam_data[n * 4 + 2],
             //         };
             //
             //         if x < sprite.x as u16 || x >= sprite.x as u16 + 8 || scanline < sprite.y as u16 { continue };
@@ -353,8 +356,8 @@ impl Ppu {
             //             if scanline >= sprite.y as u16 + 16 { continue }
             //         }
             //
-            //         let c = 128;
-            //         self.set_pixel(x as u32, scanline as u32, (c << 8) | (c << 16) | (c << 24));
+            //         let c = 0xED1576;
+            //         self.set_pixel(x as u32, scanline as u32, c);
             //     }
             // }
         }
