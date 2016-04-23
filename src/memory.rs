@@ -42,8 +42,9 @@ impl CpuMemory {
             println!("Reading from memory at {:04x} - Not implemented yet", address);
             return 0;
             //panic!("Address loading at {:04x} not implemented", address);
+        } else if self.cartridge.header.prg_size > 1 {
+            return self.cartridge.prg[address as usize & 0x7FFF];
         } else {
-            // FIXME: Yeah. This should go to a mapper. This does not work correctly;
             return self.cartridge.prg[address as usize & 0x3FFF];
         };
     }

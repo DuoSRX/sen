@@ -8,7 +8,7 @@ use std::fmt;
 #[allow(dead_code)]
 pub struct NesHeader {
     magic: [u8; 4], // Magic number ("NES\x1a")
-    prg_size: u8,   // PRG Rom banks (by increments of 16KB)
+    pub prg_size: u8,   // PRG Rom banks (by increments of 16KB)
     chr_size: u8,   // CHR Rom banks (by increments of 8KB)
     flags_6: u8,
     flags_7: u8,
