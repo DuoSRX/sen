@@ -377,6 +377,10 @@ impl Cpu {
     }
 
     pub fn store_byte(&mut self, address: u16, value: u8) {
+        // Special case for DMA. Super ugly but ehhh...
+        if address == 0x4014 {
+            self.cycle += 512;
+        }
         self.ram.store(address, value)
     }
 

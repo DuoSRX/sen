@@ -40,12 +40,15 @@ enum Tiles {
 
 // // http://wiki.nesdev.com/w/index.php/PPU_OAM
 impl Sprite {
-    fn get_tiles(&self, ppu: &Ppu) -> Tiles {
-        let address = if (ppu.regs.control & 0x08) == 0 { 0 } else { 0x1000 };
-        let big = if (ppu.regs.control & 0x20) == 0 { false } else { true }; // 8x16 or 8x8
+    pub fn palette(&self) -> u8 {
+        (self.attributes & 0x3) + 4
+    }
+    fn horizontal_flip(&self) -> bool { (self.attributes & 0x40) != 0 }
+    fn vertical_flip(&self) -> bool { (self.attributes & 0x80) != 0 }
 
-        if big {
-            Tiles::Tiles8(self.index as u16 | address)
+    pub fn get_tiles(&self, ppu: &Ppu) -> Tiles {
+        if ppu.sprite_size() == 8 {
+            Tiles::Tiles8(self.index as u16 | ppu.sprite_pattern_table_address())
         } else {
             // Ignore PPUCTRL and take bit 0 instead
             let mut address: u16 = self.index as u16 & !1;
@@ -67,9 +70,9 @@ impl std::fmt::Debug for Vram {
     }
 }
 
+// TODO: Replace the vram_load() calls with this
 impl Vram {
     pub fn load(&self, _address: u16) -> u8 {
-        //self.cartridge.chr[address]
         unimplemented!()
     }
 
@@ -122,6 +125,7 @@ pub struct Ppu {
     scroll_x: u8,
     scroll_y: u8,
     next_scroll_x: bool,
+    data_buffer: u8,
 
     pub cycle: u64,
     pub new_frame: bool,
@@ -131,7 +135,7 @@ pub struct Ppu {
 
     palettes: [u8; 32],
     name_tables: [u8; 2048],
-    oam_data: [u8; 256]
+    pub oam_data: [u8; 256]
 }
 
 impl Ppu {
@@ -144,6 +148,7 @@ impl Ppu {
             scroll_x: 0,
             scroll_y: 0,
             next_scroll_x: true,
+            data_buffer: 0,
 
             cycle: 340,
             new_frame: false,
@@ -213,12 +218,10 @@ impl Ppu {
     }
 
     // Registers
-
     fn address_increment(&mut self) -> u16 {
-        if self.regs.control & 0x04 == 0 {
-            1
-        } else {
-            32
+        match self.regs.control & 0x04 {
+            0 => 1,
+            _ => 32
         }
     }
 
@@ -231,11 +234,18 @@ impl Ppu {
 
     // $2007 Read from PPUDATA
     fn read_data(&mut self) -> u8 {
-        // TODO: Handle buffered reads
         let address = self.regs.address;
         let value = self.vram_load(address);
         self.regs.address += self.address_increment();
-        value
+
+        // http://wiki.nesdev.com/w/index.php/PPU_registers#Data_.28.242007.29_.3C.3E_read.2Fwrite
+        if address < 0x3F00 {
+            let buff = self.data_buffer;
+            self.data_buffer = value;
+            return buff;
+        } else {
+            return value
+        }
     }
 
     // $2007 Write to PPUDATA
@@ -283,6 +293,31 @@ impl Ppu {
         }
     }
 
+    fn sprite_pattern_table_address(&self) -> u16 {
+        match self.regs.control & 0x8 {
+            0 => 0,
+            _ => 0x1000,
+        }
+    }
+
+    fn show_sprites(&self) -> bool { self.regs.mask & 0x08 != 0 }
+    fn show_background(&self) -> bool { self.regs.mask & 0x10 != 0 }
+
+    fn sprite_size(&self) -> u8 {
+        match self.regs.control & 0x20 {
+            0 => 8,
+            _ => 16
+        }
+    }
+
+    fn get_pixel(&mut self, x: u8, offset: u16) -> u8 {
+        let p0 = self.vram_load(offset);
+        let p1 = self.vram_load(offset + 8);
+        let bit0 = (p0 >> (7 - ((x % 8) as u8))) & 1;
+        let bit1 = (p1 >> (7 - ((x % 8) as u8))) & 1;
+        (bit1 << 1) | bit0
+    }
+
     fn get_background_pixel(&mut self, x: u8) -> u32 {
         let x_offset = x as u16 / 8;
         let y_offset = self.scanline as u16 / 8;
@@ -294,12 +329,7 @@ impl Ppu {
 
         let mut offset = (tile << 4) + y2 as u16;
         offset += self.background_pattern_table_address();
-
-        let p0 = self.vram_load(offset);
-        let p1 = self.vram_load(offset + 8);
-        let bit0 = (p0 >> (7 - ((x2 % 8) as u8))) & 1;
-        let bit1 = (p1 >> (7 - ((x2 % 8) as u8))) & 1;
-        let result = (bit1 << 1) | bit0;
+        let pixel = self.get_pixel(x2, offset);
 
         let block = y_offset / 4 * 8 + x_offset / 4;
         let attributes = self.vram_load(0x23C0 + block);
@@ -317,10 +347,61 @@ impl Ppu {
 
         attribute_color &= 0x3;
 
-        let color = (attribute_color << 2) | result;
+        let color = (attribute_color << 2) | pixel;
         let palette_address = 0x3F00 + color as u16;
         let palette = self.vram_load(palette_address) & 0x3F;
         PALETTE_RGB[palette as usize]
+    }
+
+    fn get_sprite_pixel(&mut self, x: u8, background: bool) -> Option<u32> {
+        let mut visible_count = 0;
+
+        for n in 0..64 {
+            let sprite = Sprite {
+                y: self.oam_data[n * 4] + 1,
+                index: self.oam_data[n * 4 + 1],
+                attributes: self.oam_data[n * 4 + 2],
+                x: self.oam_data[n * 4 + 3],
+            };
+
+            // FIXME: This doesn't really work for 8x16 sprites
+            let size = self.sprite_size();
+            let on_scanline = (sprite.y as u16) < self.scanline && self.scanline < sprite.y as u16 + size as u16;
+            let in_box = x >= sprite.x && x < sprite.x + size;
+
+            if in_box && on_scanline {
+                let pixel;
+                match sprite.get_tiles(self) {
+                    Tiles::Tiles8(tile) | Tiles::Tiles16(tile, _) => {
+                        let mut sprite_x = x - sprite.x;
+                        let mut sprite_y = self.scanline as u8 - sprite.y;
+
+                        if sprite.horizontal_flip() { sprite_x = 7 - sprite_x; }
+                        if sprite.vertical_flip() { sprite_y = 7 - sprite_y; }
+
+                        let mut offset = (tile << 4) + sprite_y as u16;
+                        offset += self.sprite_pattern_table_address();
+                        pixel = self.get_pixel(sprite_x, offset);
+                    }
+                    // _ => {}
+                    // Tiles::Tiles16(_top, _bottom) => { }
+                }
+
+                if pixel == 0 { continue }; // transparent, let's not do anything
+
+                if visible_count == 0 && background {
+                    self.regs.status |= 0x40; // set sprite 0 hit
+                }
+                visible_count += 1;
+
+                let color = (sprite.palette() << 2) | pixel;
+                let palette_address = 0x3F00 + color as u16;
+                let palette = self.vram_load(palette_address) & 0x3F;
+                return Some(PALETTE_RGB[palette as usize]);
+            }
+        }
+
+        None
     }
 
     fn set_pixel(&mut self, x: u32, y: u32, color: u32) {
@@ -333,33 +414,21 @@ impl Ppu {
         let scanline = self.scanline;
 
         for x in 0..255 {
-            if self.regs.mask & 0x08 != 0 { // show background
+            let mut background = false;
+            if self.show_background() {
                 let c = self.get_background_pixel(x);
+                background = true;
                 self.set_pixel(x as u32, scanline as u32, c);
             } else {
                 self.set_pixel(x as u32, scanline as u32, 0);
             }
 
-            // if self.regs.mask & 0x10 != 0 { // whether to show sprites or not
-            //     for n in 0..64 {
-            //         let sprite = Sprite {
-            //             x: self.oam_data[n * 4 + 3],
-            //             y: self.oam_data[n * 4],
-            //             index: self.oam_data[n * 4 + 1],
-            //             attributes: self.oam_data[n * 4 + 2],
-            //         };
-            //
-            //         if x < sprite.x as u16 || x >= sprite.x as u16 + 8 || scanline < sprite.y as u16 { continue };
-            //         if (self.regs.control & 0x20) == 0 { // 8x8
-            //             if scanline >= sprite.y as u16 + 8 { continue }
-            //         } else { // 8x16
-            //             if scanline >= sprite.y as u16 + 16 { continue }
-            //         }
-            //
-            //         let c = 0xED1576;
-            //         self.set_pixel(x as u32, scanline as u32, c);
-            //     }
-            // }
+            if self.show_sprites() {
+                match self.get_sprite_pixel(x, background) {
+                    Some(color) => self.set_pixel(x as u32, scanline as u32, color),
+                    _ => ()
+                }
+            }
         }
     }
 
@@ -378,6 +447,7 @@ impl Ppu {
 
             if self.scanline == 241 { // VBlank
                 self.regs.status |= 0x80;
+                self.regs.control &= !0x40; // sprite zero hit
                 if (self.regs.control | 0x80) != 0 {
                     result.nmi = true;
                 }
