@@ -55,7 +55,7 @@ impl CpuMemory {
         } else if address < 0x4000 {
             self.ppu.store(0x2000 + address % 8, value);
         } else if address == 0x4014 {
-            self.dma();
+            self.dma(value as u16);
         } else if address == 0x4016 {
             self.controller.store(address, value);
         } else if address < 0x4018 {
@@ -72,12 +72,12 @@ impl CpuMemory {
         };
     }
 
-    fn dma(&mut self) {
-        let a = 0x4014 << 8;
+    fn dma(&mut self, start: u16) {
+        let page = start * 0x100;
 
-        for address in a..a + 256 {
-            let value = self.load(address);
-            self.store(0x2004, value);
+        for address in 0..256 {
+            let value = self.load(page + address);
+            self.ppu.oam_data[address as usize] = value;
         }
     }
 }
