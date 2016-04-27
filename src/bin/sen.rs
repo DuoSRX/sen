@@ -1,6 +1,8 @@
 extern crate sen;
 extern crate sdl2;
+extern crate time;
 
+use std::env;
 use std::fs::File;
 use std::path::Path;
 
@@ -15,17 +17,17 @@ use sen::controller::Controller;
 use sen::memory::CpuMemory;
 
 fn main() {
-    let path = Path::new("/Users/xavier/code/rust/sen/roms/donkeykong.nes");
-    // let path = Path::new("/Users/xavier/code/rust/sen/roms/galaxian.nes");
-    // let path = Path::new("/Users/xavier/code/rust/sen/roms/nestest.nes");
-    // let path = Path::new("/Users/xavier/code/rust/sen/roms/instr_test-v4/rom_singles/01-basics.nes");
+    let args: Vec<String> = env::args().collect();
+    let path = Path::new(&args[1]);
 
+    // FIXME: God this is ugly. I really need to figure out ownership better.
     let mut file = File::open(path).unwrap();
     let cartridge = Cartridge::load(&mut file);
     let mut file2 = File::open(path).unwrap();
     let cartridge2 = Cartridge::load(&mut file2);
 
-    println!("{}", cartridge.header);
+    print!("Loaded ROM at {:?}", path);
+    println!(" - {}", cartridge.header);
 
     let ppu = Ppu::new(cartridge2);
     let controller = Controller::new();
@@ -51,54 +53,44 @@ fn main() {
     let mut event_pump = sdl_context.event_pump().unwrap();
     let mut texture = renderer.create_texture_target(PixelFormatEnum::BGR24, 256, 240).unwrap();
 
+    let mut previous_time = time::precise_time_s();
+
     'running: loop {
         cpu.step();
         let ppu_result = cpu.ram.ppu.step(cpu.cycle);
+        cpu.cycle = 0;
 
         if ppu_result.nmi { cpu.nmi(); }
 
         if ppu_result.new_frame {
+            let t = time::precise_time_s();
+            if t > previous_time + 1 as f64 {
+                println!("{} FPS", cpu.ram.ppu.frames);
+                previous_time = t;
+                cpu.ram.ppu.frames = 0;
+            }
+
             texture.update(None, &cpu.ram.ppu.frame_content, 256 * 3).unwrap();
             renderer.clear();
             renderer.copy(&texture, None, None); //Some(Rect::new(0, 0, 256, 240)));
             renderer.present();
 
+            let keys: Vec<Keycode> = event_pump
+                .keyboard_state()
+                .pressed_scancodes()
+                .filter_map(Keycode::from_scancode)
+                .collect();
+
+            cpu.ram.controller.buttons = keys;
+
             while let Some(event) = event_pump.poll_event() {
                 match event {
                     Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                         break 'running
-                    }
+                    },
                     _ => ()
                 }
             }
-
         }
-
-        // for event in event_pump.poll_iter() {
-        //     match event {
-        //         Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-        //             break 'running
-        //         },
-        //         Event::KeyDown { keycode: Some(Keycode::Z), .. } => {
-        //             cpu.ram.controller.buttons[0] = true;
-        //         }
-        //         Event::KeyDown { keycode: Some(Keycode::X), .. } => {
-        //             cpu.ram.controller.buttons[1] = true;
-        //         }
-        //         Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
-        //             cpu.ram.controller.buttons[3] = true;
-        //         }
-        //         Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
-        //             cpu.ram.controller.buttons[4] = true;
-        //         }
-        //         Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
-        //             cpu.ram.controller.buttons[5] = true;
-        //         }
-        //         Event::KeyUp { keycode: Some(_key), .. } => {
-        //             cpu.ram.controller.buttons = [false; 8];
-        //         }
-        //         _ => {}
-        //     }
-        // }
     }
 }

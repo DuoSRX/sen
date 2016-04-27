@@ -126,20 +126,23 @@ impl Cpu {
     }
 
     pub fn step(&mut self) {
-        let instruction = self.load_byte_and_inc_pc();
-        // print!("{:04x}: {:?}", self.pc - 1 - 0xc79e, self);
-        // print!("{:04x}: {:?}", self.pc - 1, self);
-        //print!(" Flags: {:08b}", self.p);
-        // println!(" Instruction: {:02x}", instruction);
-        // let pc = self.pc;
-        // println!(" Instr {:02x} {:02x} {:02x}", instruction, self.load_byte(pc), self.load_byte(pc + 1));
-        // for i in 0..31 {
-        //     print!("{:02x} ", self.ram.ram.val[i]);
-        // }
-        // println!("");
-        self.execute_instruction(instruction);
-        // TODO: Handle actual cycle count
-        self.cycle += CYCLES_PER_INSTRUCTION[instruction as usize] as u64;
+        loop {
+            let instruction = self.load_byte_and_inc_pc();
+            // print!("{:04x}: {:?}", self.pc - 1 - 0xc79e, self);
+            // print!("{:04x}: {:?}", self.pc - 1, self);
+            // print!(" Flags: {:08b}", self.p);
+            // println!(" Instruction: {:02x}", instruction);
+            // let pc = self.pc;
+            // println!(" Instr {:02x} {:02x} {:02x}", instruction, self.load_byte(pc), self.load_byte(pc + 1));
+            // for i in 0..31 {
+            //     print!("{:02x} ", self.ram.ram.val[i]);
+            // }
+            // println!("");
+            self.execute_instruction(instruction);
+            // TODO: Handle actual cycle count
+            self.cycle += CYCLES_PER_INSTRUCTION[instruction as usize] as u64;
+            if self.cycle > 113 { break; };
+        }
     }
 
     fn execute_instruction(&mut self, instruction: u8) {
@@ -379,7 +382,10 @@ impl Cpu {
     pub fn store_byte(&mut self, address: u16, value: u8) {
         // Special case for DMA. Super ugly but ehhh...
         if address == 0x4014 {
-            self.cycle += 512;
+            self.cycle += 513;
+            if self.cycle % 2 == 1 {
+                self.cycle += 1;
+            }
         }
         self.ram.store(address, value)
     }

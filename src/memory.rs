@@ -28,7 +28,6 @@ impl CpuMemory {
     }
 
     pub fn load(&mut self, address: u16) -> u8 {
-        //println!("Address: {:02x} ({})", address, address);
         if address < 0x2000 {
             return self.ram.load(address);
         } else if address < 0x4000 {
@@ -61,13 +60,11 @@ impl CpuMemory {
         } else if address < 0x4018 {
             // TODO: APU
         } else if address < 0x6000 {
-            println!("Writing {:08b} to memory at {:04x} - Not implemented yet", value, address);
+            println!("Writing {:02x} to memory at {:04x} - Not implemented yet", value, address);
             //panic!("Address storing at {:04x} not implemented", address);
         } else {
-            // TODO: Move to a mapper module?
             // FIXME: Yeah. This should go to a mapper. This does not work correctly;
             // Can you even store in the PRG anyway...?
-            // What about the CHR?
             self.cartridge.prg[address as usize & 0x3FFF] = value;
         };
     }
@@ -76,7 +73,7 @@ impl CpuMemory {
         let page = start * 0x100;
 
         for address in 0..256 {
-            let value = self.load(page + address);
+            let value = self.ram.load(page + address);
             self.ppu.oam_data[address as usize] = value;
         }
     }

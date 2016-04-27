@@ -92,8 +92,6 @@ struct Registers {
     oam_data: u8, // dddd dddd 0x2004
     scroll: u8, // xxxx xxxx 0x2005
     address: u16, // aaaa aaaa 0x2006
-    data: u8, // dddd dddd 0x2007
-    oam_dma: u8 // aaaa aaaa 0x4014
 }
 
 impl Registers {
@@ -106,8 +104,6 @@ impl Registers {
             oam_data: 0,
             scroll: 0,
             address: 0,
-            data: 0,
-            oam_dma: 0
         }
     }
 
@@ -178,7 +174,7 @@ impl Ppu {
         } else if address < 0x4000 {
             self.palettes[address as usize & 0x1F]
         } else {
-            panic!("Reading VRam at {:04x} is not valid!");
+            panic!("Reading VRam at 0x{:04x} is not valid!");
         }
     }
 
@@ -190,7 +186,8 @@ impl Ppu {
         } else if address < 0x4000 {
             self.palettes[address as usize & 0x1F] = value;
         } else {
-            panic!("Storing VRam at {:04x} is not valid!", address);
+            // println!("{:04x}", self.regs.address);
+            panic!("Storing value 0x{:02x} in VRam at 0x{:04x} is not valid!", value, address);
         }
     }
 
@@ -232,6 +229,42 @@ impl Ppu {
         status
     }
 
+    // $2004 Read from OAMDATA
+    fn read_oam_data(&mut self) -> u8 {
+        let address = self.regs.oam_address as u16;
+        self.oam_data[address as usize]
+    }
+
+    // $2004 Write to OAMDATA
+    fn write_oam_data(&mut self, value: u8) {
+        let address = self.regs.oam_address as u16;
+        self.oam_data[address as usize] = value;
+        self.regs.oam_address.wrapping_add(1);
+    }
+
+    // $2005 Write to PPUSCROLL
+    fn write_scroll(&mut self, value: u8) {
+        if self.next_scroll_x {
+            self.scroll_x = value;
+            self.next_scroll_x = false;
+        } else {
+            self.scroll_y = value;
+            self.next_scroll_x = true;
+        }
+    }
+
+    // $2006 Write to PPUADDR
+    fn write_address(&mut self, address: u8) {
+        // self.regs.address = (self.regs.address << 8) | (address as u16);
+        if self.vram_rw_high {
+            self.regs.address = (self.regs.address & 0xFF) | ((address as u16) << 8);
+            self.vram_rw_high = false;
+        } else {
+            self.regs.address = (self.regs.address & 0xFF00) | (address as u16);
+            self.vram_rw_high = true;
+        }
+    }
+
     // $2007 Read from PPUDATA
     fn read_data(&mut self) -> u8 {
         let address = self.regs.address;
@@ -251,41 +284,11 @@ impl Ppu {
     // $2007 Write to PPUDATA
     fn write_data(&mut self, value: u8) {
         let address = self.regs.address as u16;
-        self.vram_store(address, value);
+        self.vram_store(address & 0x3FFF, value);
         self.regs.address += self.address_increment();
     }
 
-    // $2004 Read from OAMDATA
-    fn read_oam_data(&mut self) -> u8 {
-        let address = self.regs.oam_address as u16;
-        self.oam_data[address as usize]
-    }
-
-    // $2004 Write to OAMDATA
-    fn write_oam_data(&mut self, value: u8) {
-        let address = self.regs.oam_address as u16;
-        self.oam_data[address as usize] = value;
-        self.regs.oam_address.wrapping_add(1);
-    }
-
-    // $2006 Write to PPUADDR
-    fn write_address(&mut self, address: u8) {
-        self.regs.address = (self.regs.address << 8) | (address as u16);
-    }
-
-    // $2005 Write to PPUSCROLL
-    fn write_scroll(&mut self, value: u8) {
-        if self.next_scroll_x {
-            self.scroll_x = value;
-            self.next_scroll_x = false;
-        } else {
-            self.scroll_y = value;
-            self.next_scroll_x = true;
-        }
-    }
-
     // Rendering
-
     fn background_pattern_table_address(&self) -> u16 {
         match self.regs.control & 0x10 {
             0 => 0,
@@ -353,12 +356,14 @@ impl Ppu {
         PALETTE_RGB[palette as usize]
     }
 
-    fn get_sprite_pixel(&mut self, x: u8, background: bool) -> Option<u32> {
+    fn get_sprite_pixel(&mut self, x: u8, _background: bool) -> Option<u32> {
         let mut visible_count = 0;
 
         for n in 0..64 {
+            if visible_count >= 8 { break; } // Not sure if that's correct...
+
             let sprite = Sprite {
-                y: self.oam_data[n * 4] + 1,
+                y: self.oam_data[n * 4],
                 index: self.oam_data[n * 4 + 1],
                 attributes: self.oam_data[n * 4 + 2],
                 x: self.oam_data[n * 4 + 3],
@@ -366,10 +371,13 @@ impl Ppu {
 
             // FIXME: This doesn't really work for 8x16 sprites
             let size = self.sprite_size();
-            let on_scanline = (sprite.y as u16) < self.scanline && self.scanline < sprite.y as u16 + size as u16;
-            let in_box = x >= sprite.x && x < sprite.x + size;
+            // let on_scanline = (sprite.y as u16) < self.scanline && self.scanline < sprite.y as u16 + size as u16;
+            let in_box = x >= sprite.x && (x as u16) < sprite.x as u16 + size as u16;
+            let on_scanline = !(self.scanline < sprite.y as u16) && (self.scanline < sprite.y as u16 + 8);
 
             if in_box && on_scanline {
+                visible_count += 1;
+
                 let pixel;
                 match sprite.get_tiles(self) {
                     Tiles::Tiles8(tile) | Tiles::Tiles16(tile, _) => {
@@ -389,10 +397,10 @@ impl Ppu {
 
                 if pixel == 0 { continue }; // transparent, let's not do anything
 
-                if visible_count == 0 && background {
-                    self.regs.status |= 0x40; // set sprite 0 hit
-                }
-                visible_count += 1;
+                // if visible_count == 0 && background {
+                //     self.regs.status |= 0x40; // set sprite 0 hit
+                // }
+                // visible_count += 1;
 
                 let color = (sprite.palette() << 2) | pixel;
                 let palette_address = 0x3F00 + color as u16;
@@ -461,6 +469,7 @@ impl Ppu {
             self.cycle += 114;
         }
 
+        self.cycle = 0;
         result
     }
 }
