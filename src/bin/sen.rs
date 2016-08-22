@@ -29,9 +29,9 @@ fn main() {
     print!("Loaded ROM at {:?}", path);
     println!(" - {}", cartridge.header);
 
-    let ppu = Ppu::new(cartridge2);
+    let ppu = Ppu::new(cartridge);
     let controller = Controller::new();
-    let memory = CpuMemory::new(cartridge, ppu, controller);
+    let memory = CpuMemory::new(cartridge2, ppu, controller);
     let mut cpu = Cpu::new(memory);
 
     cpu.reset();

@@ -356,27 +356,30 @@ impl Ppu {
         PALETTE_RGB[palette as usize]
     }
 
-    fn get_sprite_pixel(&mut self, x: u8, _background: bool) -> Option<u32> {
+    fn get_sprite_pixel(&mut self, x: u8, background: bool) -> Option<u32> {
         let mut visible_count = 0;
 
         for n in 0..64 {
             if visible_count >= 8 { break; } // Not sure if that's correct...
 
             let sprite = Sprite {
-                y: self.oam_data[n * 4],
+                y: self.oam_data[n * 4] + 1,
                 index: self.oam_data[n * 4 + 1],
                 attributes: self.oam_data[n * 4 + 2],
                 x: self.oam_data[n * 4 + 3],
             };
 
             // FIXME: This doesn't really work for 8x16 sprites
-            let size = self.sprite_size();
-            // let on_scanline = (sprite.y as u16) < self.scanline && self.scanline < sprite.y as u16 + size as u16;
-            let in_box = x >= sprite.x && (x as u16) < sprite.x as u16 + size as u16;
-            let on_scanline = !(self.scanline < sprite.y as u16) && (self.scanline < sprite.y as u16 + 8);
+            //let size = self.sprite_size();
+            let in_box = x >= sprite.x && (x as u16) < sprite.x as u16 + 8 as u16;
+            let on_scanline = self.scanline >= sprite.y as u16 && (self.scanline < sprite.y as u16 + 8);
+
+            if on_scanline {
+                visible_count += 1;
+            }
 
             if in_box && on_scanline {
-                visible_count += 1;
+                //visible_count += 1;
 
                 let pixel;
                 match sprite.get_tiles(self) {
@@ -398,7 +401,7 @@ impl Ppu {
                 if pixel == 0 { continue }; // transparent, let's not do anything
 
                 // if visible_count == 0 && background {
-                //     self.regs.status |= 0x40; // set sprite 0 hit
+                    // self.regs.status |= 0x40; // set sprite 0 hit
                 // }
                 // visible_count += 1;
 

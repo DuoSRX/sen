@@ -139,9 +139,8 @@ impl Cpu {
             // }
             // println!("");
             self.execute_instruction(instruction);
-            // TODO: Handle actual cycle count
             self.cycle += CYCLES_PER_INSTRUCTION[instruction as usize] as u64;
-            if self.cycle > 113 { break; };
+            if self.cycle > 114 { break; };
         }
     }
 
@@ -414,26 +413,26 @@ impl Cpu {
     fn push_byte(&mut self, value: u8) {
         let stack_pointer = self.s;
         self.store_byte(0x100 + stack_pointer as u16, value);
-        self.s = self.s.wrapping_sub(1);
+        self.s -= 1;
     }
 
     fn push_word(&mut self, value: u16) {
         let stack_pointer = self.s.wrapping_sub(1);
         self.store_word(0x100 + stack_pointer as u16, value);
-        self.s = self.s.wrapping_sub(2);
+        self.s -= 2;
     }
 
     fn pop_byte(&mut self) -> u8 {
         let stack_pointer = self.s;
         let byte = self.load_byte(0x100 + stack_pointer as u16 + 1);
-        self.s = self.s.wrapping_add(1);
+        self.s += 1;
         byte
     }
 
     fn pop_word(&mut self) -> u16 {
         let stack_pointer = self.s;
         let word = self.load_word(0x100 + stack_pointer as u16 + 1);
-        self.s = self.s.wrapping_add(2);
+        self.s += 2;
         word
     }
 
