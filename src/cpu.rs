@@ -138,6 +138,7 @@ impl Cpu {
             //     print!("{:02x} ", self.ram.ram.val[i]);
             // }
             // println!("");
+
             self.execute_instruction(instruction);
             // TODO: Handle actual cycle count
             self.cycle += CYCLES_PER_INSTRUCTION[instruction as usize] as u64;
@@ -366,6 +367,7 @@ impl Cpu {
     }
 
     pub fn load_word(&mut self, address: u16) -> u16 {
+        // TODO: Remove this?
         // let lo = self.ram.load(address) as u16;
         // let hi = self.ram.load(address + 1);
         // lo | hi << 8 self.loadb(addr) as u16 | (self.loadb(addr + 1) as u16) << 8
@@ -373,6 +375,7 @@ impl Cpu {
     }
 
     pub fn load_word_zero_page(&mut self, address: u16) -> u16 {
+        // TODO: Remove this?
         // let lo = self.ram.load(address) as u16;
         // let hi = self.ram.load(address + 1) as u16;
         // lo | hi << 8
@@ -381,6 +384,7 @@ impl Cpu {
 
     pub fn store_byte(&mut self, address: u16, value: u8) {
         // Special case for DMA. Super ugly but ehhh...
+        // TODO: Move this into the memory code
         if address == 0x4014 {
             self.cycle += 513;
             if self.cycle % 2 == 1 {

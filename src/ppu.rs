@@ -186,7 +186,6 @@ impl Ppu {
         } else if address < 0x4000 {
             self.palettes[address as usize & 0x1F] = value;
         } else {
-            // println!("{:04x}", self.regs.address);
             panic!("Storing value 0x{:02x} in VRam at 0x{:04x} is not valid!", value, address);
         }
     }
@@ -255,7 +254,6 @@ impl Ppu {
 
     // $2006 Write to PPUADDR
     fn write_address(&mut self, address: u8) {
-        // self.regs.address = (self.regs.address << 8) | (address as u16);
         if self.vram_rw_high {
             self.regs.address = (self.regs.address & 0xFF) | ((address as u16) << 8);
             self.vram_rw_high = false;

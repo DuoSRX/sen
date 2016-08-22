@@ -20,7 +20,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let path = Path::new(&args[1]);
 
-    // FIXME: God this is ugly. I really need to figure out ownership better.
+    // FIXME: God this is ugly. I really need to figure out ownership better :/
     let mut file = File::open(path).unwrap();
     let cartridge = Cartridge::load(&mut file);
     let mut file2 = File::open(path).unwrap();
@@ -72,9 +72,10 @@ fn main() {
 
             texture.update(None, &cpu.ram.ppu.frame_content, 256 * 3).unwrap();
             renderer.clear();
-            renderer.copy(&texture, None, None); //Some(Rect::new(0, 0, 256, 240)));
+            renderer.copy(&texture, None, None);
             renderer.present();
 
+            // FIXME: The whole controller thing doesn't work at all
             let keys: Vec<Keycode> = event_pump
                 .keyboard_state()
                 .pressed_scancodes()
