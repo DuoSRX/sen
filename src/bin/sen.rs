@@ -46,12 +46,13 @@ fn main() {
         .build()
         .unwrap();
 
-    let mut renderer = window.renderer().accelerated().build().unwrap();
+    let mut canvas = window.into_canvas().accelerated().build().unwrap();
 
-    renderer.clear();
+    canvas.clear();
 
     let mut event_pump = sdl_context.event_pump().unwrap();
-    let mut texture = renderer.create_texture_target(PixelFormatEnum::BGR24, 256, 240).unwrap();
+    let tex_creator = canvas.texture_creator();
+    let mut texture = tex_creator.create_texture_target(PixelFormatEnum::BGR24, 256, 240).unwrap();
 
     let mut previous_time = time::precise_time_s();
 
@@ -71,9 +72,9 @@ fn main() {
             }
 
             texture.update(None, &cpu.ram.ppu.frame_content, 256 * 3).unwrap();
-            renderer.clear();
-            renderer.copy(&texture, None, None);
-            renderer.present();
+            canvas.clear();
+            canvas.copy(&texture, None, None).unwrap();
+            canvas.present();
 
             // FIXME: The whole controller thing doesn't work at all
             let keys: Vec<Keycode> = event_pump

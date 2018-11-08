@@ -7,7 +7,7 @@ authors = ["Xavier Perez <duosrx@gmail.com>"]
 name = "sen"
 
 [dependencies]
-sdl2 = "0.18.0"
+sdl2 = "0.31.0"
 time = "*"
 
 [profile.release]
