@@ -20,11 +20,11 @@ pub struct Cartridge {
     pub header: NesHeader,
     pub prg: Vec<u8>,
     pub chr: Vec<u8>,
-    pub ram: [u8; 0x2000]
+    pub ram: Vec<u8>,
 }
 
 // TODO: Handle EOF errors
-fn file_to_buffer(mut buffer: &mut [u8], file: &mut File) {
+fn file_to_buffer(buffer: &mut [u8], file: &mut File) {
     let mut i = 0;
     while i < buffer.len() {
         let n = file.read(&mut buffer[i..]).unwrap();
@@ -58,7 +58,7 @@ impl Cartridge {
             header: header,
             prg: prg_rom,
             chr: chr_rom,
-            ram: [0; 0x2000]
+            ram: vec![0; 0x2000],
         }
     }
 }

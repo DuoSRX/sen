@@ -371,7 +371,7 @@ impl Cpu {
         // let lo = self.ram.load(address) as u16;
         // let hi = self.ram.load(address + 1);
         // lo | hi << 8 self.loadb(addr) as u16 | (self.loadb(addr + 1) as u16) << 8
-         self.ram.load(address) as u16 | (self.ram.load(address + 1) as u16) << 8
+        self.ram.load(address) as u16 | (self.ram.load(address + 1) as u16) << 8
     }
 
     pub fn load_word_zero_page(&mut self, address: u16) -> u16 {

@@ -80,7 +80,7 @@ impl CpuMemory {
 }
 
 pub struct Ram {
-    pub val: [u8; 0xFFFF]
+    pub val: Vec<u8>,
 }
 
 impl std::fmt::Debug for Ram {
@@ -91,7 +91,7 @@ impl std::fmt::Debug for Ram {
 
 impl Ram {
     pub fn new() -> Ram {
-        Ram { val: [0; 0xFFFF] }
+        Ram { val: vec![0; 0xFFFF] }
     }
 
     pub fn load(&self, address: u16) -> u8 {

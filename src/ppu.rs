@@ -61,7 +61,7 @@ impl Sprite {
 }
 
 pub struct Vram {
-    pub val: [u8; 0x800],
+    pub val: Vec<u8>,
 }
 
 impl std::fmt::Debug for Vram {
@@ -125,12 +125,12 @@ pub struct Ppu {
 
     pub cycle: u64,
     pub new_frame: bool,
-    pub frame_content: [u8; 256 * 240 * 3],
+    pub frame_content: Vec<u8>, //[u8; 256 * 240 * 3],
     scanline: u16, // 0-239 is visible, 240 post, 241-260 vblank, 261 pre
     pub frames: u64,
 
     palettes: [u8; 32],
-    name_tables: [u8; 2048],
+    name_tables: Vec<u8>,
     pub oam_data: [u8; 256]
 }
 
@@ -139,7 +139,7 @@ impl Ppu {
         Ppu {
             cartridge: cartridge,
             regs: Registers::new(),
-            vram: Vram { val: [0; 0x800] },
+            vram: Vram { val: vec![0; 0x800] },
             vram_rw_high: true,
             scroll_x: 0,
             scroll_y: 0,
@@ -148,12 +148,12 @@ impl Ppu {
 
             cycle: 340,
             new_frame: false,
-            frame_content: [0; 256 * 240 * 3],
+            frame_content: vec![0; 256 * 240 * 3],
             scanline: 240,
             frames: 0,
 
             palettes: [0; 32],
-            name_tables: [0; 2048],
+            name_tables: vec![0; 2048],
             oam_data: [0; 256]
         }
     }
