@@ -25,7 +25,8 @@ pub const CARRY_FLAG:     u8 = 0b00000001;
 pub const ZERO_FLAG:      u8 = 0b00000010;
 pub const INTERRUPT_FLAG: u8 = 0b00000100;
 pub const DECIMAL_FLAG:   u8 = 0b00001000;
-pub const BREAK_FLAG:     u8 = 0b00010000;
+pub const BREAK4_FLAG:    u8 = 0b00010000;
+pub const BREAK5_FLAG:    u8 = 0b00100000;
 pub const OVERFLOW_FLAG:  u8 = 0b01000000;
 pub const NEGATIVE_FLAG:  u8 = 0b10000000;
 
@@ -90,7 +91,6 @@ pub struct Cpu {
     carry: bool,
     zero: bool,
     interrupt: bool,
-    brk: bool,
     decimal: bool,
     overflow: bool,
     sign: bool
@@ -111,8 +111,7 @@ impl Cpu {
             // flags
             carry: false,
             zero: false,
-            interrupt: false,
-            brk: false,
+            interrupt: true,
             decimal: false,
             overflow: false,
             sign: false
@@ -492,11 +491,10 @@ impl Cpu {
     }
 
     fn get_flags(&self) -> u8 {
-        let mut p = 0;
+        let mut p = BREAK4_FLAG | BREAK5_FLAG;
 
         if self.sign      { p |= NEGATIVE_FLAG }
         if self.overflow  { p |= OVERFLOW_FLAG }
-        if self.brk       { p |= BREAK_FLAG }
         if self.decimal   { p |= DECIMAL_FLAG }
         if self.interrupt { p |= INTERRUPT_FLAG }
         if self.zero      { p |= ZERO_FLAG }
@@ -508,7 +506,6 @@ impl Cpu {
     fn set_flags(&mut self, flags: u8) {
         self.sign = (flags & NEGATIVE_FLAG) != 0;
         self.overflow = (flags & OVERFLOW_FLAG) != 0;
-        self.brk = (flags & BREAK_FLAG) != 0;
         self.decimal = (flags & DECIMAL_FLAG) != 0;
         self.interrupt = (flags & INTERRUPT_FLAG) != 0;
         self.zero = (flags & ZERO_FLAG) != 0;
@@ -757,7 +754,7 @@ impl Cpu {
     }
 
     fn php(&mut self) {
-        let flags = self.get_flags() | BREAK_FLAG;
+        let flags = self.get_flags() | BREAK4_FLAG | BREAK5_FLAG;
         self.push_byte(flags);
     }
 
