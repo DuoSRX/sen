@@ -20,16 +20,13 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let path = Path::new(&args[1]);
 
-    // FIXME: God this is ugly. I really need to figure out ownership better :/
     let mut file = File::open(path).unwrap();
     let cartridge = Cartridge::load(&mut file);
-    let mut file2 = File::open(path).unwrap();
-    let cartridge2 = Cartridge::load(&mut file2);
 
     print!("Loaded ROM at {:?}", path);
     println!(" - {}", cartridge.header);
 
-    let ppu = Ppu::new(cartridge2);
+    let ppu = Ppu::new(cartridge.clone());
     let controller = Controller::new();
     let memory = CpuMemory::new(cartridge, ppu, controller);
     let mut cpu = Cpu::new(memory);

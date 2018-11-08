@@ -6,6 +6,7 @@ use std::fmt;
 // Reference: http://wiki.nesdev.com/w/index.php/INES
 
 #[allow(dead_code)]
+#[derive(Clone)]
 pub struct NesHeader {
     magic: [u8; 4], // Magic number ("NES\x1a")
     pub prg_size: u8,   // PRG Rom banks (by increments of 16KB)
@@ -16,6 +17,7 @@ pub struct NesHeader {
     //unused: [u8; 7] // Unused stuff
 }
 
+#[derive(Clone)]
 pub struct Cartridge {
     pub header: NesHeader,
     pub prg: Vec<u8>,
